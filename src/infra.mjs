@@ -2,36 +2,45 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { validateRuntimeInstallPlan } from "../scripts/validate-runtime-install-plan.mjs";
+import { validateInfraInstallPlan } from "../scripts/validate-infra-install-plan.mjs";
 
-export const RUNTIME_INFRA_COMPONENTS = {
-  workspace: "detects local runtime state paths",
+export const INFRA_COMPONENTS = {
+  workspace: "detects local infra state paths",
+  "workspace-config": "writes minimal local workspace config",
+  "local-ledger": "prepares local analysis ledger location",
   "permission-gate": "validates user approval and declared permissions",
   registry: "stores selected official factor metadata",
   "manifest-verifier": "verifies artifact checksum and attestation presence",
-  lockfile: "writes selected runtime state under .evozeus",
+  lockfile: "writes selected infra state under .evozeus",
+  "rollback-plan": "declares local rollback path",
   "scanner-sandbox": "enforces scanner permission boundaries",
   "factor-runner": "executes a selected factor against a session",
   "report-generator": "renders factor results into a local report"
 };
 
-export async function verifyRuntimeInfraComponents(options = {}) {
-  const root = options.root ?? (await mkdtemp(path.join(tmpdir(), "evozeus-runtime-")));
+export async function verifyInfraComponents(options = {}) {
+  const root = options.root ?? (await mkdtemp(path.join(tmpdir(), "evozeus-infra-")));
   const workspace = await probeWorkspace(root);
+  const workspaceConfig = await probeWorkspaceConfig(root);
+  const localLedger = await probeLocalLedger(root);
   const permissionGate = probePermissionGate();
   const registry = probeRegistry();
   const manifestVerifier = await probeManifestVerifier(root);
   const lockfile = await probeLockfile(root, registry.details.selected_factors);
+  const rollbackPlan = probeRollbackPlan();
   const scannerSandbox = probeScannerSandbox();
   const factorRunner = probeFactorRunner();
   const reportGenerator = probeReportGenerator([factorRunner.details.result]);
 
   const components = [
     workspace,
+    workspaceConfig,
+    localLedger,
     permissionGate,
     registry,
     manifestVerifier,
     lockfile,
+    rollbackPlan,
     scannerSandbox,
     factorRunner,
     reportGenerator
@@ -44,15 +53,51 @@ export async function verifyRuntimeInfraComponents(options = {}) {
 }
 
 async function probeWorkspace(root) {
-  const runtimeDir = path.join(root, ".evozeus", "runtime");
-  const reportDir = path.join(runtimeDir, "reports");
+  const infraDir = path.join(root, ".evozeus", "infra");
+  const reportDir = path.join(infraDir, "reports");
 
   await mkdir(reportDir, { recursive: true });
 
   return available("workspace", {
     root,
-    runtime_dir: runtimeDir,
+    infra_dir: infraDir,
     report_dir: reportDir
+  });
+}
+
+async function probeWorkspaceConfig(root) {
+  const configPath = path.join(root, ".evozeus", "config.json");
+  const config = {
+    schema_version: "workspace_config.v0",
+    mode: "local_manual",
+    privacy: {
+      upload_default: false,
+      redaction_required_for_export: true
+    },
+    infra: {
+      state_root: ".evozeus/infra"
+    }
+  };
+
+  await mkdir(path.dirname(configPath), { recursive: true });
+  await writeFile(configPath, JSON.stringify(config, null, 2));
+
+  return available("workspace-config", {
+    path: configPath,
+    schema_version: config.schema_version,
+    upload_default: config.privacy.upload_default
+  });
+}
+
+async function probeLocalLedger(root) {
+  const ledgerDir = path.join(root, ".evozeus", "infra", "index");
+
+  await mkdir(ledgerDir, { recursive: true });
+
+  return available("local-ledger", {
+    directory: ledgerDir,
+    state: "not_initialized",
+    note: "SQLite schema is planned after workspace/config/lockfile bootstrap."
   });
 }
 
@@ -69,7 +114,7 @@ function probePermissionGate() {
     },
     permissions: {
       files_read: ["session.json"],
-      files_written: [".evozeus/runtime/lockfile.json"],
+      files_written: [".evozeus/infra/lockfile.json"],
       env_read: [],
       external_commands: [],
       network: {
@@ -98,12 +143,16 @@ function probePermissionGate() {
       }
     ],
     lockfile: {
-      path: ".evozeus/runtime/lockfile.json"
+      path: ".evozeus/infra/lockfile.json"
+    },
+    rollback: {
+      disable: "Set selected factor enabled=false in the local lockfile.",
+      delete: "Remove .evozeus/infra after user confirmation."
     }
   };
 
   return available("permission-gate", {
-    issues: validateRuntimeInstallPlan(plan)
+    issues: validateInfraInstallPlan(plan)
   });
 }
 
@@ -113,7 +162,15 @@ function probeRegistry() {
       id: "fixed.tool-failure",
       version: "0.1.0",
       source: "official",
-      manifest_path: "manifests/releases/evozeus-test-pack/v0.1.0.yaml"
+      manifest_path: "manifests/releases/evozeus-test-pack/v0.1.0.yaml",
+      checksum: {
+        algorithm: "sha256",
+        value: "a".repeat(64)
+      },
+      attestation_path: "attestations/evozeus-test-pack/v0.1.0.attestation.json",
+      compatibility: {
+        evozeus_protocol: ">=0.1.0"
+      }
     }
   ];
 
@@ -141,14 +198,14 @@ async function probeManifestVerifier(root) {
 }
 
 async function probeLockfile(root, selectedFactors) {
-  const lockfilePath = path.join(root, ".evozeus", "runtime", "lockfile.json");
+  const lockfilePath = path.join(root, ".evozeus", "infra", "lockfile.json");
 
   await mkdir(path.dirname(lockfilePath), { recursive: true });
   await writeFile(
     lockfilePath,
     JSON.stringify(
       {
-        schema_version: "runtime-lock.v0",
+        schema_version: "infra-lock.v0",
         selected_factors: selectedFactors
       },
       null,
@@ -159,6 +216,14 @@ async function probeLockfile(root, selectedFactors) {
   return available("lockfile", {
     path: lockfilePath,
     factor_count: selectedFactors.length
+  });
+}
+
+function probeRollbackPlan() {
+  return available("rollback-plan", {
+    disable: "Set selected factor enabled=false in .evozeus/infra/lockfile.json.",
+    delete: "Remove .evozeus/infra after explicit user confirmation.",
+    requires_user_approval: true
   });
 }
 
@@ -181,7 +246,7 @@ function probeScannerSandbox() {
 
 function probeFactorRunner() {
   const session = {
-    session_id: "runtime-session",
+    session_id: "infra-session",
     events: [
       {
         id: "tool-1",
@@ -206,13 +271,13 @@ function probeFactorRunner() {
   };
 
   return available("factor-runner", {
-    result: runRuntimeFactor(factor, session)
+    result: runInfraFactor(factor, session)
   });
 }
 
 function probeReportGenerator(results) {
   const markdown = [
-    "# EvoZeus Runtime Report",
+    "# EvoZeus Infra Report",
     "",
     ...results.map((result) => `- ${result.factor_id}: ${result.status}`)
   ].join("\n");
@@ -225,7 +290,7 @@ function probeReportGenerator(results) {
   });
 }
 
-export function runRuntimeFactor(factor, session) {
+export function runInfraFactor(factor, session) {
   const matchedEvent = findMatchingEvent(factor.match?.any_event, session.events ?? []);
   const matched = Boolean(matchedEvent);
 

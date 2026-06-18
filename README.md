@@ -1,8 +1,8 @@
-# evozeus-runtime
+# evozeus-infra
 
-EvoZeus 的 future local runtime：CLI、TUI、local registry、report generation 和 selective Factor install。
+EvoZeus 的 future local infra：CLI、TUI、local registry、report generation 和 selective Factor install。
 
-这个 repo 当前不是稳定 CLI 产品。它是 runtime trust policy 和可执行能力的落点，只有当 `EvoZeus` 主 repo 的 protocol、registry、manifest 和权限模型稳定后，才进入用户默认路径。
+这个 repo 当前不是默认用户入口。它是 infra trust policy 和可执行能力的落点，只有当 `EvoZeus` 主 repo 的 protocol、registry、manifest 和权限模型稳定后，才进入默认路径。
 
 ```text
 EvoZeus protocol
@@ -14,7 +14,7 @@ EvoZeus protocol
 
 ## What It Is
 
-`evozeus-runtime` 负责把 EvoZeus protocol 变成可执行的本地工具面。
+`evozeus-infra` 负责把 EvoZeus protocol 变成可执行的本地工具面。
 
 它最终要回答：
 
@@ -38,7 +38,7 @@ EvoZeus protocol
 
 ## Start Here
 
-如果你要规划 runtime 变更：
+如果你要规划 infra 变更：
 
 1. 先读 `EvoZeus` 主 repo 的 protocol、schema、privacy 和 verdict docs。
 2. 确认要消费的是 main registry pointer，而不是 lab branch。
@@ -54,21 +54,21 @@ EvoZeus protocol
 给 Agent 的最短指令：
 
 ```text
-Read evozeus-runtime/SKILL.md and README.md, then draft a runtime change plan. Start from trust policy, local-first behavior, manifest verification, scanner permission boundaries, and user approval gates. Do not assume runtime can upload, scan, or install by default.
+Read evozeus-infra/SKILL.md and README.md, then draft an infra change plan. Start from trust policy, local-first behavior, manifest verification, scanner permission boundaries, and user approval gates. Do not assume infra can upload, scan, or install by default.
 ```
 
 ## Who Should Use This
 
 | Role | Use this repo when | Stop when |
 | --- | --- | --- |
-| Runtime maintainer | 需要实现 CLI/TUI/local registry/report | protocol 或 registry pointer 未稳定 |
+| Infra maintainer | 需要实现 CLI/TUI/local registry/report | protocol 或 registry pointer 未稳定 |
 | Security reviewer | 需要审查 scanner、upload、network、plugin execution | permission model 不完整 |
 | Factor pack consumer | 需要选择性安装 official pack | pack 没有 manifest/checksum/attestation |
 | Product maintainer | 需要设计用户使用路径 | 默认路径违反 local-first 或 opt-in |
 
 ## User View
 
-| 用户问题 | Runtime 应该提供的入口 |
+| 用户问题 | Infra 应该提供的入口 |
 | --- | --- |
 | 我能先本地审判一次 session 吗？ | local report generation |
 | 我能看证据从哪里来吗？ | local evidence packet / source locator |
@@ -79,7 +79,7 @@ Read evozeus-runtime/SKILL.md and README.md, then draft a runtime change plan. S
 
 ## Trust Contract
 
-Runtime 的默认契约：
+Infra 的默认契约：
 
 - Local-first。
 - Markdown / JSON first。
@@ -89,7 +89,7 @@ Runtime 的默认契约：
 - Official pack only through registry + manifest + checksum。
 - User approval before contribution, upload, install, or external issue / PR creation。
 
-## Runtime Lifecycle
+## Infra Lifecycle
 
 ```text
 protocol read
@@ -106,28 +106,26 @@ protocol read
 
 | Path | Purpose |
 | --- | --- |
-| `docs/` | runtime 边界、权限模型、使用流设计 |
-| `prototypes/` | 从主 repo 清理出来的旧 runtime prototype，仅作迁移素材 |
+| `docs/` | infra 边界、权限模型、使用流设计 |
+| `prototypes/` | 从主 repo 清理出来的旧 prototype，仅作迁移素材 |
 | `examples/` | future CLI / TUI / report 示例 |
-| `packages/` | runtime package 预留位置 |
-| `schemas/` | runtime config、lockfile 或 local registry schema |
+| `packages/` | infra package 预留位置 |
+| `schemas/` | infra config、lockfile 或 local registry schema |
 
 ## Current Status
 
 - Repo status: private / future shell。
-- Public target: 出现用户可安装 runtime 前必须 public。
+- Public target: 出现用户可安装 infra 前必须 public。
 - Stable CLI: no。
 - Default user entry: no。
-- Runtime docs intake: `docs/` 已承接从 `EvoZeus` 主 repo 移出的 runtime-heavy 设计材料。
-- Runtime prototype intake: `prototypes/main-repo-runtime/` 已承接旧 scanner / Factor runner / storage / report prototype。
-- Runtime code migration: active implementation 仍 pending protocol / registry / trust policy stability。
+- Infra docs intake: `docs/` 已承接从 `EvoZeus` 主 repo 移出的 infra-heavy 设计材料。
+- Infra prototype intake: `prototypes/main-repo-runtime/` 已承接旧 scanner / Factor runner / storage / report prototype。
+- Infra implementation: active JS infra probes live in `src/infra.mjs` and `scripts/evozeus-infra-doctor.mjs`。
 
 ## Not Stable Yet
 
-- 没有稳定 CLI 命令。
 - 没有 install contract。
-- 没有 scanner sandbox implementation。
-- 没有 lockfile schema。
+- 没有默认 workspace scan 命令。
 - 没有 registry consumer implementation。
 
 ## Validation
@@ -136,11 +134,14 @@ protocol read
 
 ```bash
 git diff --check
+npm run doctor
 npm test
 npm run test:infra-components
-npm run test:runtime-contract
+npm run test:infra-contract
 ```
 
-`test:infra-components` 校验 runtime infra 的 workspace、permission gate、registry、manifest verifier、lockfile、scanner sandbox、factor runner 和 report generator 是否可用，并实际运行一个 selected factor、写入 `.evozeus/runtime/lockfile.json`、生成 report。
+`npm run doctor` 输出 `evozeus-infra` 当前可用组件、`.evozeus/infra` 本地状态路径、lockfile schema、scanner sandbox、factor runner 和 report generator smoke 结果。
 
-`test:runtime-contract` 校验 runtime install plan 是否满足 explicit user approval、main registry pointer、official factor metadata、checksum、attestation、lockfile 和 network approval gate。
+`test:infra-components` 校验 infra 的 workspace、permission gate、registry、manifest verifier、lockfile、scanner sandbox、factor runner 和 report generator 是否可用，并实际运行一个 selected factor、写入 `.evozeus/infra/lockfile.json`、生成 report。
+
+`test:infra-contract` 校验 infra install plan 是否满足 explicit user approval、main registry pointer、official factor metadata、checksum、attestation、lockfile 和 network approval gate。

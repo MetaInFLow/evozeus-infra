@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateRuntimeInstallPlan } from "../scripts/validate-runtime-install-plan.mjs";
+import { validateInfraInstallPlan } from "../scripts/validate-infra-install-plan.mjs";
 
 const validPlan = {
   user_approval: true,
@@ -14,7 +14,7 @@ const validPlan = {
   },
   permissions: {
     files_read: ["~/.codex/sessions"],
-    files_written: [".evozeus/runtime/lockfile.json"],
+    files_written: [".evozeus/infra/lockfile.json"],
     env_read: [],
     external_commands: [],
     network: {
@@ -43,22 +43,26 @@ const validPlan = {
     }
   ],
   lockfile: {
-    path: ".evozeus/runtime/lockfile.json"
+    path: ".evozeus/infra/lockfile.json"
+  },
+  rollback: {
+    disable: "Disable selected factors in the local lockfile.",
+    delete: "Remove .evozeus/infra after explicit user confirmation."
   }
 };
 
-test("accepts an explicitly approved runtime plan backed by official factor metadata", () => {
-  assert.deepEqual(validateRuntimeInstallPlan(validPlan), []);
+test("accepts an explicitly approved infra plan backed by official factor metadata", () => {
+  assert.deepEqual(validateInfraInstallPlan(validPlan), []);
 });
 
-test("rejects runtime enablement without explicit user approval", () => {
-  const issues = validateRuntimeInstallPlan({ ...validPlan, user_approval: false });
+test("rejects infra enablement without explicit user approval", () => {
+  const issues = validateInfraInstallPlan({ ...validPlan, user_approval: false });
 
   assert.match(issues.join("\n"), /user approval/i);
 });
 
 test("rejects default factors that bypass official release metadata", () => {
-  const issues = validateRuntimeInstallPlan({
+  const issues = validateInfraInstallPlan({
     ...validPlan,
     factors: [
       {
@@ -72,10 +76,11 @@ test("rejects default factors that bypass official release metadata", () => {
 
   assert.match(issues.join("\n"), /official/i);
   assert.match(issues.join("\n"), /attestation/i);
+  assert.match(issues.join("\n"), /lab moving branches/i);
 });
 
 test("rejects network access unless it is separately approved with a reason", () => {
-  const issues = validateRuntimeInstallPlan({
+  const issues = validateInfraInstallPlan({
     ...validPlan,
     permissions: {
       ...validPlan.permissions,
@@ -86,4 +91,27 @@ test("rejects network access unless it is separately approved with a reason", ()
   });
 
   assert.match(issues.join("\n"), /network/i);
+});
+
+test("rejects lockfiles and registry pointers outside approved paths", () => {
+  const issues = validateInfraInstallPlan({
+    ...validPlan,
+    registry: {
+      source: "EvoZeus",
+      pointer: "docs/runtime.json"
+    },
+    lockfile: {
+      path: ".evozeus/runtime/lockfile.json"
+    }
+  });
+
+  assert.match(issues.join("\n"), /factors\/registry/);
+  assert.match(issues.join("\n"), /\.evozeus\/infra/);
+});
+
+test("rejects infra plans without rollback instructions", () => {
+  const { rollback: _rollback, ...withoutRollback } = validPlan;
+  const issues = validateInfraInstallPlan(withoutRollback);
+
+  assert.match(issues.join("\n"), /rollback/i);
 });

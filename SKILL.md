@@ -1,11 +1,11 @@
 ---
-name: evozeus-runtime
-description: Use when enabling, designing, implementing, reviewing, or debugging EvoZeus runtime behavior, local registry, CLI, TUI, scanner execution, report generation, lockfile, or selective official factor install.
+name: evozeus-infra
+description: Use when enabling, designing, implementing, reviewing, or debugging EvoZeus infra behavior, local registry, CLI, TUI, scanner execution, report generation, lockfile, or selective official factor install.
 ---
 
-# EvoZeus Runtime
+# EvoZeus Infra
 
-Runtime is the executable component of EvoZeus. It is enabled only after the user approves local execution, file access, installs, network behavior, and local state changes.
+EvoZeus Infra is the executable infrastructure component of EvoZeus. It is enabled only after the user approves local execution, file access, installs, network behavior, and local state changes.
 
 ## Component Role
 
@@ -18,7 +18,7 @@ EvoZeus registry pointer
   -> local report
 ```
 
-## Before Enabling Runtime
+## Before Enabling Infra
 
 Explain and confirm:
 
@@ -36,7 +36,7 @@ If the user does not approve, stop at the protocol-only judgment path.
 
 Default factors are recommended, not silently enabled.
 
-Runtime must:
+Infra must:
 
 1. read the `EvoZeus` registry pointer
 2. resolve only official release manifests
@@ -49,21 +49,21 @@ If registry pointer, manifest, checksum, SBOM / attestation, or compatibility is
 
 ## Development Boundary
 
-Runtime PRs belong in this repo when they touch:
+Infra PRs belong in this repo when they touch:
 
 - CLI / TUI / companion / local API
 - local registry or lockfile
-- `.evozeus/` state
+- `.evozeus/infra` state
 - scanner execution
 - factor execution
 - report generation
-- runtime upload, network, sandbox, dependency, or rollback behavior
+- infra upload, network, sandbox, dependency, or rollback behavior
 
 Protocol, governance, and registry pointer semantics belong in the `EvoZeus` main repo.
 
 ## Output Shape
 
-For runtime plans or reviews, output:
+For infra plans or reviews, output:
 
 ```text
 Capability -> Inputs -> Outputs -> Permissions -> Verification -> Rollback -> User approval gate

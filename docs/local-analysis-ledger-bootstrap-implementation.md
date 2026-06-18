@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> Migration note: 本计划已从 `EvoZeus` 主 repo 移入 `evozeus-runtime`。旧 `__infra__/...` 路径表示 historical main-repo prototype 的原始文件位置，不是当前实现目标路径。执行新任务时应先把对应模块设计到本 repo 的 runtime 结构中，再实现和验证。
+> Migration note: 本计划已从 `EvoZeus` 主 repo 移入 `evozeus-infra`。旧 `__infra__/...` 路径表示 historical main-repo prototype 的原始文件位置，不是当前实现目标路径。执行新任务时应先把对应模块设计到本 repo 的 infra 结构中，再实现和验证。
 
 **Goal:** 将 EvoZeus 本地 runtime 从单次 report 生成升级为可 bootstrap、可增量分析、可被 TUI / browser workspace 共同消费的 Local Analysis Ledger。
 
@@ -516,7 +516,7 @@ Invoke `evozeus onboard` in a temp cwd. Assert:
 
 ```text
 .evozeus/config.json exists
-.evozeus/runtime/index/results.sqlite3 exists
+.evozeus/infra/index/results.sqlite3 exists
 installed_factors count >= 8
 factor_result_routes count > 0
 ```

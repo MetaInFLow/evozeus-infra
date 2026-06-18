@@ -22,15 +22,15 @@ function requireArray(value, path, issues) {
   }
 }
 
-export function validateRuntimeInstallPlan(plan) {
+export function validateInfraInstallPlan(plan) {
   const issues = [];
 
   if (!isPlainObject(plan)) {
-    return ["runtime install plan must be an object"];
+    return ["infra install plan must be an object"];
   }
 
   if (plan.user_approval !== true) {
-    issues.push("runtime enablement requires explicit user approval");
+    issues.push("infra enablement requires explicit user approval");
   }
 
   if (!isPlainObject(plan.registry)) {
@@ -40,6 +40,9 @@ export function validateRuntimeInstallPlan(plan) {
       issues.push("registry source must be EvoZeus");
     }
     requireString(plan.registry.pointer, "registry.pointer", issues);
+    if (hasText(plan.registry.pointer) && !plan.registry.pointer.startsWith("factors/registry/")) {
+      issues.push("registry.pointer must stay under factors/registry/");
+    }
   }
 
   if (!isPlainObject(plan.default_factor_set)) {
@@ -73,8 +76,15 @@ export function validateRuntimeInstallPlan(plan) {
 
   if (!isPlainObject(plan.lockfile)) {
     issues.push("lockfile declaration is required");
-  } else if (!hasText(plan.lockfile.path) || !plan.lockfile.path.startsWith(".evozeus/")) {
-    issues.push("lockfile.path must stay under .evozeus/");
+  } else if (!hasText(plan.lockfile.path) || !plan.lockfile.path.startsWith(".evozeus/infra/")) {
+    issues.push("lockfile.path must stay under .evozeus/infra/");
+  }
+
+  if (!isPlainObject(plan.rollback)) {
+    issues.push("rollback declaration is required");
+  } else {
+    requireString(plan.rollback.disable, "rollback.disable", issues);
+    requireString(plan.rollback.delete, "rollback.delete", issues);
   }
 
   if (!Array.isArray(plan.factors) || plan.factors.length === 0) {
@@ -104,6 +114,12 @@ export function validateRuntimeInstallPlan(plan) {
         issues.push(`${prefix}.manifest is required`);
       } else {
         requireString(factor.manifest.path, `${prefix}.manifest.path`, issues);
+        if (
+          hasText(factor.manifest.path) &&
+          factor.manifest.path.includes("evozeus-factor-lab")
+        ) {
+          issues.push(`${prefix}.manifest.path must not point to lab moving branches`);
+        }
       }
 
       if (!isPlainObject(factor.checksum)) {
@@ -134,13 +150,13 @@ async function main() {
   const file = process.argv[2];
 
   if (!file) {
-    console.error("Usage: node scripts/validate-runtime-install-plan.mjs <plan.json>");
+    console.error("Usage: node scripts/validate-infra-install-plan.mjs <plan.json>");
     process.exitCode = 2;
     return;
   }
 
   const plan = JSON.parse(await readFile(file, "utf8"));
-  const issues = validateRuntimeInstallPlan(plan);
+  const issues = validateInfraInstallPlan(plan);
 
   if (issues.length > 0) {
     console.error(issues.join("\n"));
@@ -148,7 +164,7 @@ async function main() {
     return;
   }
 
-  console.log("runtime install plan is valid");
+  console.log("infra install plan is valid");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
