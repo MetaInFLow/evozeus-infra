@@ -1,0 +1,26 @@
+{
+  "schema_version": "factor.v0",
+  "id": "default.tool_failure",
+  "name": "tool-failure",
+  "framework_id": "agent_session_review.v0",
+  "stage": "signal_extraction",
+  "runtime_profile": "default",
+  "default_enabled": true,
+  "version": "0.1.0",
+  "status": "active",
+  "description": "Detects tool failure terms in tool events.",
+  "entrypoint": "factor:ToolFailureFactor",
+  "inputs": ["session.events", "tool_event.content", "tool_event.result"],
+  "outputs": ["tag", "evidence_ref", "verdict_signal"],
+  "permissions": ["read_session_events"],
+  "risks": ["may classify transient tool failures as environment issues"],
+  "rollback": "delete this factor folder or disable it in local config",
+  "runtime": {
+    "mode": "in_process",
+    "timeout_ms": 1000
+  },
+  "run": {
+    "mode": "sync",
+    "timeout_ms": 1000
+  }
+}

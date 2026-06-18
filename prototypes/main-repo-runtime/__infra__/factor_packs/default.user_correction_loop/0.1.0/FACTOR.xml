@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.user_correction_loop" version="0.1.0">
+  <name>
+    <zh>用户纠偏循环</zh>
+    <en>User Correction Loop</en>
+  </name>
+  <summary>
+    <zh>识别一次 session 内连续或多轮用户纠偏形成的 correction loop。</zh>
+    <en>Detects repeated or multi-turn user corrections that form a correction loop in one session.</en>
+  </summary>
+  <category>session-signal</category>
+  <stage>signal_extraction</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>user_turn.content</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>score</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="correction_loop" value="user_correction_loop">
+      <zh>用户纠偏循环</zh>
+      <en>User correction loop</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要发现 Agent 在同一任务中被用户反复纠偏、反复校正方向时使用。</zh>
+    <en>Use this to find cases where the Agent is repeatedly corrected or redirected within the same task.</en>
+  </when_to_use>
+  <limitations>
+    <zh>教学式对话和探索式讨论也可能出现多轮纠偏，需要结合任务类型和最终结果判断。</zh>
+    <en>Tutorial-style or exploratory conversations can also contain multi-turn corrections; interpret with task type and outcome.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的用户回合内容，不输出 raw private content。</zh>
+    <en>Reads only standardized SessionEnvelope user turns and does not output raw private content.</en>
+  </privacy>
+</factor>

@@ -1,0 +1,26 @@
+{
+  "schema_version": "factor.v0",
+  "id": "default.negative_feedback",
+  "name": "negative-feedback",
+  "framework_id": "agent_session_review.v0",
+  "stage": "signal_extraction",
+  "runtime_profile": "default",
+  "default_enabled": true,
+  "version": "0.1.0",
+  "status": "active",
+  "description": "Detects user correction or negative feedback in session turns.",
+  "entrypoint": "factor:NegativeFeedbackFactor",
+  "inputs": ["session.events", "user_turn.content"],
+  "outputs": ["tag", "evidence_ref", "verdict_signal"],
+  "permissions": ["read_session_events"],
+  "risks": ["may treat strong wording as reusable signal"],
+  "rollback": "delete this factor folder or disable it in local config",
+  "runtime": {
+    "mode": "in_process",
+    "timeout_ms": 1000
+  },
+  "run": {
+    "mode": "sync",
+    "timeout_ms": 1000
+  }
+}

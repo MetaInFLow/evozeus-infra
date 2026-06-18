@@ -107,6 +107,7 @@ protocol read
 | Path | Purpose |
 | --- | --- |
 | `docs/` | runtime 边界、权限模型、使用流设计 |
+| `prototypes/` | 从主 repo 清理出来的旧 runtime prototype，仅作迁移素材 |
 | `examples/` | future CLI / TUI / report 示例 |
 | `packages/` | runtime package 预留位置 |
 | `schemas/` | runtime config、lockfile 或 local registry schema |
@@ -117,7 +118,9 @@ protocol read
 - Public target: 出现用户可安装 runtime 前必须 public。
 - Stable CLI: no。
 - Default user entry: no。
-- Runtime code migration: pending protocol / registry / trust policy stability。
+- Runtime docs intake: `docs/` 已承接从 `EvoZeus` 主 repo 移出的 runtime-heavy 设计材料。
+- Runtime prototype intake: `prototypes/main-repo-runtime/` 已承接旧 scanner / Factor runner / storage / report prototype。
+- Runtime code migration: active implementation 仍 pending protocol / registry / trust policy stability。
 
 ## Not Stable Yet
 

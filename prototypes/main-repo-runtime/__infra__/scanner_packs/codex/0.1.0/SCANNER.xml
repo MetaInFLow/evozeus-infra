@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scanner id="codex" version="0.1.0">
+  <name>Codex Session Scanner</name>
+  <summary>扫描本地 Codex JSONL session，生成 SessionEnvelope、source locator、content hash 和 redacted preview。</summary>
+  <provider>codex</provider>
+  <source_format>codex_jsonl</source_format>
+  <locator_schema>locator.codex_jsonl.v0</locator_schema>
+  <privacy>SQLite 默认只保存 hash、redacted preview 和 locator，不保存完整原文。</privacy>
+</scanner>
