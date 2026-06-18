@@ -1,0 +1,22 @@
+{
+  "schema_version": "factor.v0",
+  "id": "default.success_closure_quality",
+  "name": "success-closure-quality",
+  "framework_id": "agent_session_review.v0",
+  "stage": "verdict_building",
+  "runtime_profile": "default",
+  "default_enabled": true,
+  "version": "0.1.0",
+  "status": "active",
+  "description": "Scores closure quality from unresolved loops, tool failures, corrections, and final verification language.",
+  "entrypoint": "factor:SuccessClosureQualityFactor",
+  "inputs": ["session.events", "assistant_turn.content", "tool_event.result"],
+  "outputs": ["tag", "score", "evidence_ref", "verdict_signal"],
+  "permissions": ["read_session_events"],
+  "risks": ["text-only closure score may miss external verification context"],
+  "rollback": "delete this factor folder or disable it in local config",
+  "runtime": {
+    "mode": "in_process",
+    "timeout_ms": 1000
+  }
+}

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.tool_failure" version="0.1.0">
+  <name>
+    <zh>工具失败</zh>
+    <en>Tool Failure</en>
+  </name>
+  <summary>
+    <zh>识别工具调用失败、timeout、traceback、permission 或环境异常信号。</zh>
+    <en>Detects tool call failure, timeout, traceback, permission, or environment error signals.</en>
+  </summary>
+  <category>session-signal</category>
+  <stage>signal_extraction</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>tool_event.content</input>
+    <input>tool_event.result</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="tool_failure" value="*">
+      <zh>工具失败</zh>
+      <en>Tool failure</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要判断任务失败或延后是否由工具、权限、环境或运行错误导致时使用。</zh>
+    <en>Use this to decide whether failure or delay was caused by tools, permissions, environment, or runtime errors.</en>
+  </when_to_use>
+  <limitations>
+    <zh>瞬时工具失败不一定造成任务失败，需要结合后续重试和最终交付状态判断。</zh>
+    <en>A transient tool failure may not cause task failure; interpret it with retries and final delivery state.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的工具事件内容，证据引用不携带原始敏感信息。</zh>
+    <en>Reads only standardized SessionEnvelope tool events, and evidence references do not carry raw sensitive content.</en>
+  </privacy>
+</factor>

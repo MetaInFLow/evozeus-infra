@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.same_target_rework" version="0.1.0">
+  <name>
+    <zh>同目标返工</zh>
+    <en>Same-target Rework</en>
+  </name>
+  <summary>
+    <zh>识别同一任务目标上发生的重复修正、重做或返工信号。</zh>
+    <en>Detects repeated fixes, redo requests, or rework signals on the same task target.</en>
+  </summary>
+  <category>session-signal</category>
+  <stage>signal_extraction</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>user_turn.content</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="rework" value="same_target_rework">
+      <zh>同目标返工</zh>
+      <en>Same-target rework</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要从 session 中找到同一目标被多次调整、推翻或重写的 evidence 时使用。</zh>
+    <en>Use this to find evidence that the same target was adjusted, rejected, or rewritten multiple times.</en>
+  </when_to_use>
+  <limitations>
+    <zh>协作式迭代也会出现同一目标多次修改，需要结合负反馈和最终闭环质量判断。</zh>
+    <en>Collaborative iteration can also revise one target repeatedly, so interpret it with feedback and closure quality.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的用户回合内容，不输出原始私密文本。</zh>
+    <en>Reads only standardized SessionEnvelope user turns and does not output raw private text.</en>
+  </privacy>
+</factor>

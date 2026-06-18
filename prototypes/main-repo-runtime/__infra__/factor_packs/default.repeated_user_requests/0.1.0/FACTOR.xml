@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.repeated_user_requests" version="0.1.0">
+  <name>
+    <zh>重复请求</zh>
+    <en>Repeated User Requests</en>
+  </name>
+  <summary>
+    <zh>识别用户围绕同一目标反复提出请求的模式。</zh>
+    <en>Detects repeated user requests around the same target, task, or object.</en>
+  </summary>
+  <category>session-signal</category>
+  <stage>signal_extraction</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>user_turn.content</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>score</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="repeated_request" value="same_target">
+      <zh>重复目标请求</zh>
+      <en>Repeated target request</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要判断用户是否在同一对象、同一任务或同一意图上多次重复要求时使用。</zh>
+    <en>Use this to determine whether the user repeatedly asks about the same object, task, or intent.</en>
+  </when_to_use>
+  <limitations>
+    <zh>用户逐步补充细节也会形成重复请求，需要结合是否发生返工判断。</zh>
+    <en>Incremental detail can look like repetition, so interpret it with whether rework occurred.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的用户回合内容，证据引用只保留 event id。</zh>
+    <en>Reads only standardized SessionEnvelope user turns and keeps only event ids in evidence references.</en>
+  </privacy>
+</factor>

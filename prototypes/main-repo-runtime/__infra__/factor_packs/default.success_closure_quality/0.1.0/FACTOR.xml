@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.success_closure_quality" version="0.1.0">
+  <name>
+    <zh>闭环质量</zh>
+    <en>Success Closure Quality</en>
+  </name>
+  <summary>
+    <zh>结合未闭环、工具失败、纠偏和验证语言，评估一次任务的闭环质量。</zh>
+    <en>Scores task closure quality from open loops, tool failures, corrections, and verification language.</en>
+  </summary>
+  <category>success-analysis</category>
+  <stage>verdict_building</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>assistant_turn.content</input>
+    <input>tool_event.result</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>score</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="success_factor" value="closure_quality:strong">
+      <zh>高质量闭环</zh>
+      <en>Strong closure</en>
+    </tag>
+    <tag type="success_factor" value="closure_quality:watch">
+      <zh>闭环需关注</zh>
+      <en>Closure needs attention</en>
+    </tag>
+    <tag type="success_factor" value="closure_quality:weak">
+      <zh>闭环较弱</zh>
+      <en>Weak closure</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要把多个 session 信号汇总成任务成功、延后或需要复盘的判断时使用。</zh>
+    <en>Use this to summarize multiple session signals into success, delay, or review-needed judgment.</en>
+  </when_to_use>
+  <limitations>
+    <zh>纯文本闭环评分无法替代真实运行验证，外部状态变化需要由其他 factor 补充。</zh>
+    <en>Text-only closure scoring cannot replace real execution checks; external state changes need other factors.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的事件摘要和引用，不保存 raw private content。</zh>
+    <en>Reads only standardized SessionEnvelope event summaries and references, and does not store raw private content.</en>
+  </privacy>
+</factor>

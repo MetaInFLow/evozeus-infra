@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.open_loop" version="0.1.0">
+  <name>
+    <zh>未闭环</zh>
+    <en>Open Loop</en>
+  </name>
+  <summary>
+    <zh>识别后续确认、blocked、TODO、未完成交付等未闭环信号。</zh>
+    <en>Detects unresolved follow-up, blocked states, TODOs, and unfinished delivery signals.</en>
+  </summary>
+  <category>session-signal</category>
+  <stage>signal_extraction</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>user_turn.content</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>score</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="open_loop" value="follow_up_required">
+      <zh>需要跟进</zh>
+      <en>Follow-up required</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要定位任务链路中是否存在未解决、待确认或被阻塞的尾巴时使用。</zh>
+    <en>Use this to find unresolved, awaiting-confirmation, or blocked tails in a task flow.</en>
+  </when_to_use>
+  <limitations>
+    <zh>正常的计划拆分也可能包含 TODO 语言，需要结合最终交付状态判断。</zh>
+    <en>Normal planning can also contain TODO wording, so interpret it with the final delivery state.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的事件内容，不保存原始会话文本。</zh>
+    <en>Reads only standardized SessionEnvelope events and does not store raw conversation text.</en>
+  </privacy>
+</factor>

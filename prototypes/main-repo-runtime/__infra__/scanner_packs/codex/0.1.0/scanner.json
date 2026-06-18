@@ -1,0 +1,25 @@
+{
+  "schema_version": "scanner.v0",
+  "id": "codex",
+  "version": "0.1.0",
+  "provider": "codex",
+  "name": "Codex Session Scanner",
+  "entrypoint": "scanner:CodexScanner",
+  "resolver": "resolver:CodexSourceResolver",
+  "supports": [
+    {
+      "target_type": "session",
+      "source_format": "codex_jsonl",
+      "locator_schema": "locator.codex_jsonl.v0"
+    }
+  ],
+  "permissions": ["read_local_session_files"],
+  "default_source_dirs": [
+    "~/.codex/sessions",
+    "~/.codex/archived_sessions"
+  ],
+  "privacy": {
+    "sqlite_raw_content": false,
+    "redacted_preview": true
+  }
+}

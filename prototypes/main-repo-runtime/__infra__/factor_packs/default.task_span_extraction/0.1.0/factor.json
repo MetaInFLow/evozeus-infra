@@ -1,0 +1,22 @@
+{
+  "schema_version": "factor.v0",
+  "id": "default.task_span_extraction",
+  "name": "task-span-extraction",
+  "framework_id": "agent_session_review.v0",
+  "stage": "normalize",
+  "runtime_profile": "default",
+  "default_enabled": true,
+  "version": "0.1.0",
+  "status": "active",
+  "description": "Extracts lightweight task span tags from session user turns.",
+  "entrypoint": "factor:TaskSpanExtractionFactor",
+  "inputs": ["session.events", "user_turn.content"],
+  "outputs": ["tag", "score", "evidence_ref"],
+  "permissions": ["read_session_events"],
+  "risks": ["regex boundaries may under-split long sessions"],
+  "rollback": "delete this factor folder or disable it in local config",
+  "runtime": {
+    "mode": "in_process",
+    "timeout_ms": 1000
+  }
+}

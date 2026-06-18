@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.negative_feedback" version="0.1.0">
+  <name>
+    <zh>用户负反馈</zh>
+    <en>Negative Feedback</en>
+  </name>
+  <summary>
+    <zh>识别用户明确纠偏、负反馈、不满意或返工表达。</zh>
+    <en>Detects explicit user correction, negative feedback, dissatisfaction, or rework signals.</en>
+  </summary>
+  <category>session-signal</category>
+  <stage>signal_extraction</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>user_turn.content</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>evidence_ref</output>
+    <output>verdict_signal</output>
+  </outputs>
+  <tag_labels>
+    <tag type="negative_feedback" value="correction">
+      <zh>用户纠偏</zh>
+      <en>User correction</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要判断一次 Agent 工作是否出现用户纠偏、负反馈或返工信号时使用。</zh>
+    <en>Use this when deciding whether an Agent run contains user correction, negative feedback, or rework signals.</en>
+  </when_to_use>
+  <limitations>
+    <zh>强语气不一定代表任务失败，需要结合后续闭环、工具结果和上下文判断。</zh>
+    <en>Strong wording does not always mean task failure; interpret it with later closure, tool results, and context.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的用户回合内容，不写入 raw private content。</zh>
+    <en>Reads only standardized SessionEnvelope user turns and does not write raw private content.</en>
+  </privacy>
+</factor>

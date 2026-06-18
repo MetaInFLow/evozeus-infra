@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factor id="default.task_span_extraction" version="0.1.0">
+  <name>
+    <zh>任务片段抽取</zh>
+    <en>Task Span Extraction</en>
+  </name>
+  <summary>
+    <zh>从用户回合中抽取轻量 task span、任务类型和开闭状态标签。</zh>
+    <en>Extracts lightweight task spans, task types, and open/closed status tags from user turns.</en>
+  </summary>
+  <category>normalization</category>
+  <stage>normalize</stage>
+  <runtime>in_process</runtime>
+  <inputs>
+    <input>session.events</input>
+    <input>user_turn.content</input>
+  </inputs>
+  <outputs>
+    <output>tag</output>
+    <output>score</output>
+    <output>evidence_ref</output>
+  </outputs>
+  <tag_labels>
+    <tag type="task_span" value="analysis">
+      <zh>分析任务</zh>
+      <en>Analysis task</en>
+    </tag>
+    <tag type="task_span" value="debug">
+      <zh>调试任务</zh>
+      <en>Debug task</en>
+    </tag>
+    <tag type="task_span" value="implementation">
+      <zh>开发任务</zh>
+      <en>Implementation task</en>
+    </tag>
+    <tag type="task_span" value="design_doc">
+      <zh>设计文档任务</zh>
+      <en>Design doc task</en>
+    </tag>
+    <tag type="task_span" value="review">
+      <zh>复盘任务</zh>
+      <en>Review task</en>
+    </tag>
+    <tag type="task_span_status" value="open">
+      <zh>任务未闭环</zh>
+      <en>Task open</en>
+    </tag>
+    <tag type="task_span_status" value="closed">
+      <zh>任务已闭环</zh>
+      <en>Task closed</en>
+    </tag>
+  </tag_labels>
+  <when_to_use>
+    <zh>当需要把一段 session 先拆成可分析任务片段，为后续 signal factor 提供目标边界时使用。</zh>
+    <en>Use this to split a session into analyzable task spans and provide target boundaries for later signal factors.</en>
+  </when_to_use>
+  <limitations>
+    <zh>当前是轻量规则抽取，长 session 的任务边界可能需要后续模型型 factor 补强。</zh>
+    <en>This is a lightweight rule-based extractor; long-session task boundaries may need model-based factors later.</en>
+  </limitations>
+  <privacy>
+    <zh>只读取标准化 SessionEnvelope 的用户回合内容，结果只输出标签和证据引用。</zh>
+    <en>Reads only standardized SessionEnvelope user turns and outputs only labels plus evidence references.</en>
+  </privacy>
+</factor>
