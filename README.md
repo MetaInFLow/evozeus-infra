@@ -54,7 +54,7 @@ EvoZeus protocol
 给 Agent 的最短指令：
 
 ```text
-Read evozeus-runtime/README.md and draft a runtime change plan. Start from trust policy, local-first behavior, manifest verification, scanner permission boundaries, and user approval gates. Do not assume runtime can upload, scan, or install by default.
+Read evozeus-runtime/SKILL.md and README.md, then draft a runtime change plan. Start from trust policy, local-first behavior, manifest verification, scanner permission boundaries, and user approval gates. Do not assume runtime can upload, scan, or install by default.
 ```
 
 ## Who Should Use This
@@ -114,6 +114,7 @@ protocol read
 ## Current Status
 
 - Repo status: private / future shell。
+- Public target: 出现用户可安装 runtime 前必须 public。
 - Stable CLI: no。
 - Default user entry: no。
 - Runtime code migration: pending protocol / registry / trust policy stability。
@@ -128,16 +129,15 @@ protocol read
 
 ## Validation
 
-当前只有 docs / shell 结构：
+当前可执行的职责校验：
 
 ```bash
 git diff --check
-```
-
-未来有实现后，必须补：
-
-```bash
 npm test
-npm run build
-# or equivalent runtime test suite
+npm run test:infra-components
+npm run test:runtime-contract
 ```
+
+`test:infra-components` 校验 runtime infra 的 workspace、permission gate、registry、manifest verifier、lockfile、scanner sandbox、factor runner 和 report generator 是否可用，并实际运行一个 selected factor、写入 `.evozeus/runtime/lockfile.json`、生成 report。
+
+`test:runtime-contract` 校验 runtime install plan 是否满足 explicit user approval、main registry pointer、official factor metadata、checksum、attestation、lockfile 和 network approval gate。
