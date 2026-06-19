@@ -198,10 +198,10 @@ SQLite 和原始数据之间的对应机制归属 scanner pack。
 
 这个归属避免 SQLite 绑定 Codex、Claude Code、Cursor、Feishu 等私有格式。下载、升级或删除某个 scanner pack 时，它携带的 resolver、脚本和 `SKILL.md` 一起变化；Local Analysis Ledger 只保留可路由的引用。
 
-Bundled scanner pack 可以放在：
+Runtime 自带或测试用 scanner pack 可以放在：
 
 ```text
-__infra__/scanner_packs/<scanner_id>/<version>/
+tests/fixtures/scanner_packs/<scanner_id>/<version>/
 ```
 
 用户下载的 scanner pack 放在：

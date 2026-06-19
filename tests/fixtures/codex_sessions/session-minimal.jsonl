@@ -1,0 +1,5 @@
+{"type":"session_meta","payload":{"id":"session-minimal","cwd":"/tmp/evozeus-fixture"}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"请扫描这个 session"}]}}
+{"type":"response_item","payload":{"type":"function_call_output","name":"exec_command","status":"error","output":"Traceback: command failed"}}
+{"type":"event_msg","payload":{"type":"task_complete","completed_at":"2026-06-19T00:00:00Z","duration_ms":10}}
+

@@ -307,10 +307,10 @@ Agent 可以提示：
 
 ## 当前实现状态
 
-- 旧 `prototypes/main-repo-runtime/__infra__` 已实现：`FactorRuntimeConfig`、`runtime.mode` manifest 字段、`RuntimeResolver`、`SubprocessUvRuntime`、`subprocess_worker`、timeout、非法输出校验、依赖声明文件校验。
-- 旧 prototype 已实现：`FactorRunner` 可同时运行 `Factor` 实例和 `FactorPack`。
-- 旧 prototype 已实现：默认 8 个 factor pack 显式声明 `runtime.mode=in_process`。
-- 当前 active JS infra 只提供 component probe、install plan gate 和轻量 factor runner smoke；`subprocess_uv`、timeout、错误隔离和 result schema validation 尚未迁移为 active implementation。
+- 当前 `src/evozeus_runtime/runner/` 已实现：`RuntimeResolver`、`SubprocessUvRuntime`、`subprocess_worker`、timeout、非法输出校验和 result schema validation。
+- 当前 `src/evozeus_runtime/factors/` 已实现：`FactorRuntimeConfig`、`runtime.mode` manifest 字段、`FactorPackRepository` 和 `Factor` Template Method。
+- 当前 `tests/fixtures/factor_packs/` 保留默认 FactorPack contract fixtures，并显式声明 `runtime.mode=in_process`。
+- 旧 JS infra probe 已删除，不再作为 runtime implementation。
 - 待实现：完整 `uv` install cache、runtime index、container / remote runtime。
 
 核心决策：主程序负责协议和调度，因子库作为独立能力包演进；轻量因子直接运行，复杂因子隔离运行。
