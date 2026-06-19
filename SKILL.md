@@ -1,63 +1,64 @@
 ---
 name: evozeus-runtime
-description: Use when enabling, designing, implementing, reviewing, or debugging EvoZeus runtime behavior, local registry, CLI, TUI, scanner execution, report generation, lockfile, or selective official factor install.
+description: Use when designing, implementing, reviewing, or debugging EvoZeus local scanner, SessionEnvelope, factor runner, local ledger, report generation, permission gate, manifest verification, or FactorPack execution.
 ---
 
 # EvoZeus Runtime
 
-Runtime is the executable component of EvoZeus. It is enabled only after the user approves local execution, file access, installs, network behavior, and local state changes.
+This repo is the Python scanner / runner runtime for EvoZeus.
 
 ## Component Role
 
 ```text
-EvoZeus registry pointer
-  -> official release manifest
-  -> checksum / SBOM / attestation
-  -> selected factors
-  -> local judgment
+local session source
+  -> scanner adapter
+  -> SessionEnvelope
+  -> selected FactorPack
+  -> FactorRunner
+  -> local ledger
   -> local report
 ```
 
-## Before Enabling Runtime
+## Before Runtime Execution
 
-Explain and confirm:
+Identify and, when needed, confirm:
 
 - files and directories to read
 - files and local state to write
 - environment variables to read
 - external commands to run
 - network access, if any
-- selected official factors
+- selected scanner
+- selected factors
 - rollback and cleanup path
 
-If the user does not approve, stop at the protocol-only judgment path.
+Default behavior is local-first, upload-off, network-off, external-command-off, and explicit-selection for factors.
 
-## Default Official Factors
+## Architecture Rules
 
-Default factors are recommended, not silently enabled.
-
-Runtime must:
-
-1. read the `EvoZeus` registry pointer
-2. resolve only official release manifests
-3. verify checksum, SBOM / attestation, compatibility, and review state
-4. write a local lockfile before execution
-5. run only selected factors
-6. keep raw session data local
-
-If registry pointer, manifest, checksum, SBOM / attestation, or compatibility is missing, report the blocker instead of inventing an install path.
+- Scanner uses Abstract Base Class + Adapter + Registry. 每个本地应用或 session provider 必须实现独立 scanner adapter。
+- Scanner `scan` 阶段只记录 `session_id` 和 `message_id`，不得写入 message content、tool output 或 preview。
+- Scanner `load` 阶段才 materialize `SessionEnvelope`，必须通过 event generator 渐进式读取，只给 selected Factor runtime 使用。
+- SQLite `session_events` 在 scan 后是 message id index，用于关联后续 Factor evidence、tags、results。
+- P0 built-in scanner is `CodexScanner`; future provider adapters register through the scanner registry instead of branching inside use cases.
+- Factor uses Abstract Base Class + Template Method.
+- Runner uses Serial Pipeline.
+- Runtime isolation uses Strategy / Resolver.
+- Ledger uses Repository Pattern.
+- Report generation reads ledger / results and does not rescan or rerun factors.
 
 ## Development Boundary
 
-Runtime PRs belong in this repo when they touch:
+Runtime changes belong here when they touch:
 
-- CLI / TUI / companion / local API
-- local registry or lockfile
-- `.evozeus/` state
-- scanner execution
-- factor execution
+- local session scanner adapters
+- `SessionEnvelope` / event locator schema
+- FactorPack loading and validation
+- Factor runner and runtime isolation
+- local SQLite ledger
 - report generation
-- runtime upload, network, sandbox, dependency, or rollback behavior
+- permission gate
+- manifest checksum / attestation / compatibility verification
 
 Protocol, governance, and registry pointer semantics belong in the `EvoZeus` main repo.
 

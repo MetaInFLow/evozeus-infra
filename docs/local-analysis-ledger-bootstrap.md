@@ -4,11 +4,11 @@
 - Owner: EvoZeus Core
 - Last updated: 2026-06-17
 
-> Migration note: 本文已从 `EvoZeus` 主 repo 移入 `evozeus-runtime`。旧文中的 main-repo prototype 路径只作为历史设计线索；新的 runtime implementation 应落在本 repo，不应把执行层加回 `EvoZeus` 主 repo。
+> Migration note: 本文已从 `EvoZeus` 主 repo 移入 `evozeus-infra`。旧文中的 main-repo prototype 路径只作为历史设计线索；新的 infra implementation 应落在本 repo，不应把执行层加回 `EvoZeus` 主 repo。
 
 ## 背景
 
-EvoZeus 的本地 runtime 需要支持 Skill Driven Software 的最短闭环：
+EvoZeus 的本地 infra 需要支持 Skill Driven Software 的最短闭环：
 
 ```text
 扫描本地 session
@@ -18,13 +18,13 @@ EvoZeus 的本地 runtime 需要支持 Skill Driven Software 的最短闭环：
 -> 根据 factor_id 和 route 显示到 Sessions / Dashboards / Drawer
 ```
 
-当前实现已经有 `.evozeus/runtime/index/results.sqlite3`，可以记录 session、event、analysis run、factor result、tag、evidence 和 event -> tag 映射。下一步需要把它从 result index 扩展为 Local Analysis Ledger，本地分析账本。
+当前 prototype 已经有 `.evozeus/runtime/index/results.sqlite3`，可以记录 session、event、analysis run、factor result、tag、evidence 和 event -> tag 映射。新的 active infra 路径使用 `.evozeus/infra`，下一步需要把它从 result index 扩展为 Local Analysis Ledger，本地分析账本。
 
 这个账本服务本地用户和本地 Agent。社区贡献、远程同步、factor marketplace、云端托管不进入当前设计范围。
 
 ## 目标
 
-1. 第一次 bootstrap 后，本地有稳定的 `.evozeus/` runtime 状态。
+1. 第一次 bootstrap 后，本地有稳定的 `.evozeus/infra` 状态。
 2. 本地 SQLite 能回答“扫到了什么、跑过什么、什么时候跑、哪些还没跑”。
 3. 本地 SQLite 能回答“有哪些 factor、什么时候安装、是否启用、支持哪些输入”。
 4. factor result 的展示位置由 route registry 决定，UI 不硬编码 factor_id。
@@ -47,15 +47,15 @@ P0 不做完整 GUI 应用，只做 TUI + local browser workspace。
 
 ### 1. SQLite 是本地事实账本
 
-SQLite 保存本地 runtime 的结构化事实。报告页面、TUI、companion backend 都只消费这个账本，不各自维护状态。
+SQLite 保存本地 infra 的结构化事实。报告页面、TUI、companion backend 都只消费这个账本，不各自维护状态。
 
 ### 2. Bootstrap 只创建最小 runtime
 
-第一次运行只创建 config、SQLite schema、bundled factor registry、空 runtime 目录。内容型目录按需创建。
+第一次运行只创建 config、SQLite schema、bundled factor registry、空 infra 目录。内容型目录按需创建。
 
 ### 3. Factor 是本地能力
 
-factor pack 可以来自 bundled 或 downloaded。runtime 必须知道 factor 是否存在、是否启用、是否支持当前 provider / target。
+factor pack 可以来自 bundled 或 downloaded。infra 必须知道 factor 是否存在、是否启用、是否支持当前 provider / target。
 
 ### 4. Result 通过 route 展示
 
@@ -63,7 +63,7 @@ factor result 不直接绑定 UI。`factor_result_routes` 决定结果进入 Ses
 
 ### 5. 增量分析必须有 fingerprint
 
-只记录 last run 不够。runtime 需要比较 source、factor、runtime config 的 fingerprint，判断首次运行、跳过、重跑、过期和失败。
+只记录 last run 不够。infra 需要比较 source、factor、infra config 的 fingerprint，判断首次运行、跳过、重跑、过期和失败。
 
 ## 本地目录
 
@@ -72,7 +72,7 @@ Bootstrap 后：
 ```text
 .evozeus/
   config.json
-  runtime/
+  infra/
     index/
       results.sqlite3
     factors/
@@ -198,16 +198,16 @@ SQLite 和原始数据之间的对应机制归属 scanner pack。
 
 这个归属避免 SQLite 绑定 Codex、Claude Code、Cursor、Feishu 等私有格式。下载、升级或删除某个 scanner pack 时，它携带的 resolver、脚本和 `SKILL.md` 一起变化；Local Analysis Ledger 只保留可路由的引用。
 
-Bundled scanner pack 可以放在：
+Runtime 自带或测试用 scanner pack 可以放在：
 
 ```text
-__infra__/scanner_packs/<scanner_id>/<version>/
+tests/fixtures/scanner_packs/<scanner_id>/<version>/
 ```
 
 用户下载的 scanner pack 放在：
 
 ```text
-.evozeus/runtime/scanners/installed/<scanner_id>/<version>/
+.evozeus/infra/scanners/installed/<scanner_id>/<version>/
 ```
 
 每个 scanner pack 至少包含：

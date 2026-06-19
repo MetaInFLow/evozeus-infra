@@ -4,13 +4,13 @@
 - Owner: EvoZeus Core
 - Last updated: 2026-06-16
 
-> Migration note: 本文已从 `EvoZeus` 主 repo 移入 `evozeus-runtime`。旧文中的 main-repo prototype 路径只作为历史设计线索；新的 runtime implementation 应落在本 repo，不应把执行层加回 `EvoZeus` 主 repo。
+> Migration note: 本文已从 `EvoZeus` 主 repo 移入 `evozeus-infra`。旧文中的 main-repo prototype 路径只作为历史设计线索；新的 infra implementation 应落在本 repo，不应把执行层加回 `EvoZeus` 主 repo。
 
 ## 背景
 
 EvoZeus 的因子库会像 Skill 一样被下载、安装、删除和升级。随着因子数量增加，不同因子可能依赖不同版本的 Python 库，例如 `numpy`、`pydantic`、`paddle`、`torch`、浏览器自动化库等。
 
-当前基础实现中，factor 通过 Python import 进入主进程运行。这适合轻量规则因子，但无法承载复杂依赖场景。一个 factor 的依赖升级可能影响整个 runtime，甚至影响其他 factor 的运行结果。
+当前基础实现中，factor 通过 Python import 进入主进程运行。这适合轻量规则因子，但无法承载复杂依赖场景。一个 factor 的依赖升级可能影响整个 infra 主进程，甚至影响其他 factor 的运行结果。
 
 因此需要定义一套 factor runtime isolation 机制，让因子库可以独立演进，同时保持统一输入输出协议。
 
@@ -79,7 +79,7 @@ P0 后续补齐：
 ## Factor Pack 目录规范
 
 ```text
-.evozeus/runtime/factors/installed/<factor_id>/<version>/
+.evozeus/infra/factors/installed/<factor_id>/<version>/
   factor.json
   FACTOR.xml
   factor.py
@@ -91,7 +91,7 @@ P0 后续补齐：
 轻量 factor 示例：
 
 ```text
-.evozeus/runtime/factors/installed/default.tool_failure/0.1.0/
+.evozeus/infra/factors/installed/default.tool_failure/0.1.0/
   factor.json
   FACTOR.xml
   factor.py
@@ -100,7 +100,7 @@ P0 后续补齐：
 带依赖 factor 示例：
 
 ```text
-.evozeus/runtime/factors/installed/vision.ocr/0.1.0/
+.evozeus/infra/factors/installed/vision.ocr/0.1.0/
   factor.json
   FACTOR.xml
   factor.py
@@ -307,9 +307,10 @@ Agent 可以提示：
 
 ## 当前实现状态
 
-- 已实现：`FactorRuntimeConfig`、`runtime.mode` manifest 字段、`RuntimeResolver`、`SubprocessUvRuntime`、`subprocess_worker`、timeout、非法输出校验、依赖声明文件校验。
-- 已实现：`FactorRunner` 可同时运行 `Factor` 实例和 `FactorPack`。
-- 已实现：默认 8 个 factor pack 显式声明 `runtime.mode=in_process`。
+- 当前 `src/evozeus_runtime/runner/` 已实现：`RuntimeResolver`、`SubprocessUvRuntime`、`subprocess_worker`、timeout、非法输出校验和 result schema validation。
+- 当前 `src/evozeus_runtime/factors/` 已实现：`FactorRuntimeConfig`、`runtime.mode` manifest 字段、`FactorPackRepository` 和 `Factor` Template Method。
+- 当前 `tests/fixtures/factor_packs/` 保留默认 FactorPack contract fixtures，并显式声明 `runtime.mode=in_process`。
+- 旧 JS infra probe 已删除，不再作为 runtime implementation。
 - 待实现：完整 `uv` install cache、runtime index、container / remote runtime。
 
 核心决策：主程序负责协议和调度，因子库作为独立能力包演进；轻量因子直接运行，复杂因子隔离运行。
