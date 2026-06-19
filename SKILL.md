@@ -1,11 +1,11 @@
 ---
-name: evozeus-runtime
+name: evozeus-infra
 description: Use when designing, implementing, reviewing, or debugging EvoZeus local scanner, SessionEnvelope, factor runner, local ledger, report generation, permission gate, manifest verification, or FactorPack execution.
 ---
 
-# EvoZeus Runtime
+# EvoZeus Infra
 
-This repo is the Python scanner / runner runtime for EvoZeus.
+This repo is the Python scanner / runner infra component for EvoZeus.
 
 ## Component Role
 
