@@ -27,9 +27,9 @@ def main() -> int:
     parser.add_argument("--pack-root", required=True, type=Path, help="Local FactorPack root.")
     parser.add_argument(
         "--workspace",
-        default=Path("."),
+        default=Path.home(),
         type=Path,
-        help="Workspace root for .evozeus state. Defaults to the current working directory.",
+        help="Workspace root for .evozeus state. Defaults to the user's home directory.",
     )
     args = parser.parse_args()
 

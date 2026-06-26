@@ -29,6 +29,15 @@ SOURCE_ID_MANIFEST_NAMES = {"codex-source-ids.jsonl", ".codex-source-ids.jsonl"}
 SESSION_INDEX_NAME = "session_index.jsonl"
 CODEX_SESSION_ROOT_NAMES = {"sessions", "archived_sessions"}
 SECRET_RE = re.compile(r"(?i)\b(api[_-]?key|token|secret|password)\b\s*[:=]\s*\S+")
+REQUEST_MARKER_RE = re.compile(r"##\s*My request for Codex:\s*", re.I)
+CONTEXT_MARKERS = (
+    "# agents.md instructions",
+    "<environment_context>",
+    "<instructions>",
+    "<goal_context>",
+    "<turn_aborted>",
+    "continue working toward the active thread goal",
+)
 
 
 class CodexScanner(SessionScanner):
@@ -58,17 +67,21 @@ class CodexScanner(SessionScanner):
         message_refs: list[SessionMessageRef] = []
         source_fingerprint = str(ref.metadata.get("source_fingerprint") or _source_fingerprint(ref.source_path))
         session_id = ref.session_id
+        message_index = 0
         for raw_line_index, record in _iter_jsonl_records(ref.source_path):
             embedded_session_id = _session_id_from_record(record)
             if embedded_session_id is not None:
-                session_id = embedded_session_id
+                if session_id == ref.source_path.stem:
+                    session_id = embedded_session_id
                 continue
 
-            message_id = _message_id_from_record(len(message_refs) + 1, raw_line_index, record)
+            message_id = _message_id_from_record(message_index + 1, raw_line_index, record)
             if message_id is None:
                 continue
-            message_index = len(message_refs) + 1
+            message_index += 1
             message_metadata = _message_ref_metadata_from_record(record)
+            if not _should_index_message_ref(message_metadata):
+                continue
             message_refs.append(
                 SessionMessageRef(
                     provider=self.provider,
@@ -93,15 +106,6 @@ class CodexScanner(SessionScanner):
                             ensure_ascii=False,
                             sort_keys=True,
                         ),
-                        "artifact_locator_json": json.dumps(
-                            _artifact_locator(
-                                session_id=session_id,
-                                event_id=message_id,
-                                event_index=message_index,
-                            ),
-                            ensure_ascii=False,
-                            sort_keys=True,
-                        ),
                     },
                 )
             )
@@ -115,7 +119,8 @@ class CodexScanner(SessionScanner):
         for index, record in _iter_jsonl_records(ref.source_path):
             embedded_session_id = _session_id_from_record(record)
             if embedded_session_id is not None:
-                session_id = embedded_session_id
+                if session_id == ref.source_path.stem:
+                    session_id = embedded_session_id
                 continue
 
             event = _event_from_payload(index, record)
@@ -174,20 +179,10 @@ def _session_id_from_record(record: dict[str, Any]) -> str | None:
 
 def _discover_session_id(path: Path) -> str:
     inspected = 0
-    with path.open(encoding="utf-8") as handle:
-        lines = handle.readlines(100_000)
-    for line in lines:
-        if not line.strip():
-            continue
+    for _, record in _iter_jsonl_records(path):
         inspected += 1
         if inspected > 100:
             break
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(record, dict):
-            continue
         session_id = _session_id_from_record(record)
         if session_id is not None:
             return session_id
@@ -294,19 +289,32 @@ def _message_ref_metadata_from_record(record: dict[str, Any]) -> dict[str, str]:
         event_type = str(payload.get("type") or wrapper_type)
         role = _message_ref_role(wrapper_type, event_type, payload)
         tool_name = _message_ref_tool_name(role, event_type, payload)
-        return {
+        metadata = {
             "role": role,
             "tool_name": tool_name,
             "record_type": wrapper_type,
             "payload_type": event_type,
         }
+        event = _event_from_payload(0, record)
+        if event is not None:
+            metadata.update(_channel_metadata(event))
+        return metadata
     role = str(record.get("role") or record.get("type") or "unknown")
-    return {
+    metadata = {
         "role": role,
         "tool_name": str(record.get("tool_name") or ""),
         "record_type": "flat",
         "payload_type": role,
     }
+    metadata.update(_channel_metadata(_event_from_flat_payload(0, record)))
+    return metadata
+
+
+INDEXED_MESSAGE_CHANNELS = {"user_input", "assistant_result", "tool_usage"}
+
+
+def _should_index_message_ref(metadata: dict[str, str]) -> bool:
+    return str(metadata.get("factor_channel") or "") in INDEXED_MESSAGE_CHANNELS
 
 
 def _message_ref_role(wrapper_type: str, event_type: str, payload: dict[str, Any]) -> str:
@@ -440,11 +448,13 @@ def _with_locator(
 ) -> SessionEvent:
     metadata = dict(event.metadata)
     content_hash = _content_hash(event.content)
+    channel_metadata = _channel_metadata(event)
     metadata.update(
         {
             "provider": "codex",
             "scanner_id": SCANNER_ID,
             "scanner_version": SCANNER_VERSION,
+            **channel_metadata,
             "source_ref": str(source_path),
             "source_fingerprint": source_fingerprint,
             "content_hash": content_hash,
@@ -466,6 +476,94 @@ def _with_locator(
         }
     )
     return event.model_copy(update={"metadata": metadata})
+
+
+def _channel_metadata(event: SessionEvent) -> dict[str, str]:
+    raw_role = event.role
+    content_kind = _content_kind(event)
+    factor_channel = _factor_channel(event, content_kind)
+    chat_role = _chat_role(event, factor_channel)
+    factor_preview = _preview(_factor_text_for_preview(event, content_kind))
+    return {
+        "raw_role": raw_role,
+        "chat_role": chat_role,
+        "content_kind": content_kind,
+        "factor_channel": factor_channel,
+        "factor_text_preview": factor_preview,
+    }
+
+
+def _content_kind(event: SessionEvent) -> str:
+    role = event.role
+    if role == "user":
+        return _user_content_kind(event.content)
+    if role == "assistant":
+        return "assistant_message"
+    if role == "task_complete":
+        return "task_complete"
+    if role == "tool":
+        event_type = str(event.metadata.get("codex_event_type") or "")
+        if event_type in {"function_call", "custom_tool_call", "web_search_call"}:
+            return "tool_call"
+        if event_type in {"function_call_output", "custom_tool_call_output"}:
+            return "tool_output"
+        return "tool_output" if event.tool_result is not None else "tool_call"
+    if role in {"system", "developer"}:
+        return "system_context"
+    return "codex_event"
+
+
+def _user_content_kind(content: str) -> str:
+    text = content.strip()
+    lowered = text.lower()
+    if REQUEST_MARKER_RE.search(text) is not None:
+        return "real_user_message"
+    if not text:
+        return "empty"
+    if "<image" in lowered:
+        return "image_payload"
+    if any(marker in lowered for marker in CONTEXT_MARKERS):
+        return "codex_context"
+    return "real_user_message"
+
+
+def _factor_channel(event: SessionEvent, content_kind: str) -> str:
+    if content_kind == "real_user_message":
+        return "user_input"
+    if content_kind in {"codex_context", "image_payload", "system_context", "empty", "codex_event"}:
+        return "context"
+    if content_kind == "assistant_message" or content_kind == "task_complete":
+        return "assistant_result"
+    if content_kind == "tool_call":
+        return "tool_usage"
+    if content_kind == "tool_output":
+        return "tool_result"
+    if event.role == "tool":
+        return "tool_result"
+    return "context"
+
+
+def _chat_role(event: SessionEvent, factor_channel: str) -> str:
+    if factor_channel == "user_input":
+        return "user"
+    if factor_channel == "assistant_result":
+        return "assistant"
+    if factor_channel in {"tool_usage", "tool_result"}:
+        return "tool"
+    return "context"
+
+
+def _factor_text_for_preview(event: SessionEvent, content_kind: str) -> str:
+    if content_kind == "real_user_message":
+        return _extract_user_request(event.content)
+    return event.content
+
+
+def _extract_user_request(content: str) -> str:
+    marker = REQUEST_MARKER_RE.search(content)
+    if marker is None:
+        return content.strip()
+    return content[marker.end() :].strip()
 
 
 def _event_locator(
@@ -612,17 +710,13 @@ def _codex_session_metadata(path: Path) -> dict[str, str]:
 
 
 def _read_first_session_meta(path: Path) -> dict[str, Any] | None:
-    with path.open(encoding="utf-8") as handle:
-        for line in handle:
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                return None
-            if isinstance(record, dict) and record.get("type") == "session_meta":
-                return record
-            return None
+    inspected = 0
+    for _, record in _iter_jsonl_records(path):
+        inspected += 1
+        if inspected > 100:
+            break
+        if record.get("type") == "session_meta":
+            return record
     return None
 
 
@@ -822,7 +916,11 @@ def _content_hash(content: str) -> str:
 
 
 def _preview(content: str, *, limit: int = 160) -> str:
-    redacted = SECRET_RE.sub(lambda match: f"{match.group(1)}=[REDACTED]", content)
+    chunk = content[: max(limit * 8, 1024)]
+    lowered = chunk.lower()
+    if not any(token in lowered for token in ("api", "key", "token", "secret", "password")):
+        return chunk[:limit]
+    redacted = SECRET_RE.sub(lambda match: f"{match.group(1)}=[REDACTED]", chunk)
     return redacted[:limit]
 
 

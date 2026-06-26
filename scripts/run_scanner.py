@@ -20,9 +20,9 @@ def main() -> int:
     parser.add_argument("--source", type=Path, help="Local session source directory. Defaults to provider local dirs.")
     parser.add_argument(
         "--workspace",
-        default=Path("."),
+        default=Path.home(),
         type=Path,
-        help="Workspace root for .evozeus state. Defaults to the current working directory.",
+        help="Workspace root for .evozeus state. Defaults to the user's home directory.",
     )
     args = parser.parse_args()
 

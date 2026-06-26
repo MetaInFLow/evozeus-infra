@@ -15,6 +15,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+graph = [
+  "graphqlite>=0.4.4",
+]
 dev = [
   "pytest>=8.0",
 ]
@@ -31,4 +34,3 @@ pythonpath = ["src"]
 filterwarnings = [
   "ignore:Using `httpx` with `starlette.testclient` is deprecated",
 ]
-

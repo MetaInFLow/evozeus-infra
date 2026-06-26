@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -54,6 +55,10 @@ class FactorResult(BaseModel):
     status: str = "matched"
     tags: list[dict[str, str]] = Field(default_factory=list)
     scores: dict[str, float] = Field(default_factory=dict)
+    statistics: dict[str, Any] = Field(default_factory=dict)
+    datasets: list[dict[str, Any]] = Field(default_factory=list)
+    presentations: list[dict[str, Any]] = Field(default_factory=list)
     evidence_refs: list[dict[str, str]] = Field(default_factory=list)
     verdict_signals: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
     confidence: float

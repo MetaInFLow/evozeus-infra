@@ -27,6 +27,11 @@ def generate_ledger_browser(
     ledger = LedgerRepository(paths)
     statuses = ledger.list_session_statuses()
     events = ledger.list_session_events()
+    factor_results = [
+        result
+        for status in statuses
+        for result in ledger.list_factor_results(session_id=status.session_id)
+    ]
 
     html_path = output_path or (paths.runtime_root / "reports" / "evozeus-sqlite.html")
     html_path.parent.mkdir(parents=True, exist_ok=True)
@@ -34,6 +39,7 @@ def generate_ledger_browser(
         render_ledger_browser_html(
             statuses=statuses,
             events=events,
+            factor_results=factor_results,
             ledger_path=paths.result_index_db,
         ),
         encoding="utf-8",

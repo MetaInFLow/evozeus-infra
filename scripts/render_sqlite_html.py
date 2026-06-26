@@ -18,9 +18,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Render EvoZeus SQLite ledger as a static HTML visualizer.")
     parser.add_argument(
         "--workspace",
-        default=Path("."),
+        default=Path.home(),
         type=Path,
-        help="Workspace root for .evozeus state. Defaults to the current working directory.",
+        help="Workspace root for .evozeus state. Defaults to the user's home directory.",
     )
     parser.add_argument("--output", type=Path, help="HTML output path. Defaults to .evozeus/runtime/reports/evozeus-sqlite.html.")
     args = parser.parse_args()

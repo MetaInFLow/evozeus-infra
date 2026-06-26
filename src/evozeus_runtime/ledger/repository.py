@@ -144,14 +144,11 @@ class LedgerRepository:
                         now,
                     ),
                 )
-                conn.execute(
-                    """
-                    DELETE FROM sessions
-                    WHERE provider = ?
-                      AND source_ref = ?
-                      AND session_id != ?
-                    """,
-                    (ref.provider, str(ref.source_path), ref.session_id),
+                _delete_session_source_aliases(
+                    conn,
+                    provider=ref.provider,
+                    source_ref=str(ref.source_path),
+                    keep_session_id=ref.session_id,
                 )
                 conn.execute(
                     """
@@ -220,8 +217,8 @@ class LedgerRepository:
                         str(ref.metadata.get("source_ref") or ref.source_path),
                         str(ref.metadata.get("source_fingerprint") or ""),
                         str(ref.metadata.get("event_locator_json") or "{}"),
-                        str(ref.metadata.get("artifact_locator_json") or "{}"),
-                        _json(ref.metadata),
+                        "{}",
+                        _json(_compact_event_metadata(ref.metadata)),
                     ),
                 )
             for session_id, event_count in counts_by_session.items():
@@ -410,9 +407,10 @@ class LedgerRepository:
         selected_factor_ids = list(factor_ids or [result.factor_id for result in results])
         error_items = list(errors or [])
         status = "error" if error_items else "completed"
+        evidence_event_ids = _result_evidence_event_ids(results)
         with self._connect() as conn:
             self._upsert_session(conn, session, now)
-            self._upsert_events(conn, session)
+            self._upsert_events(conn, session, event_ids=evidence_event_ids)
             conn.execute(
                 """
                 INSERT INTO analysis_runs (
@@ -444,6 +442,7 @@ class LedgerRepository:
                 )
             for error in error_items:
                 self._insert_error(conn, analysis_run_id, session.session_id, error, now)
+            self._delete_orphan_analysis_runs(conn, session.session_id)
         return analysis_run_id
 
     def list_session_statuses(self, *, factor_ids: Iterable[str] | None = None) -> list[SessionAnalysisStatus]:
@@ -476,7 +475,8 @@ class LedgerRepository:
                     event_index,
                     source_ref,
                     event_locator_json,
-                    content_preview_redacted
+                    content_preview_redacted,
+                    metadata_json
                 FROM session_events
                 WHERE role IN ('user', 'assistant')
                 ORDER BY session_id, event_index
@@ -493,9 +493,10 @@ class LedgerRepository:
         for row in event_rows:
             session_id = str(row["session_id"])
             role = str(row["role"])
-            if role == "user" and session_id not in first_user_by_session:
+            factor_channel = _event_factor_channel(row)
+            if role == "user" and factor_channel == "user_input" and session_id not in first_user_by_session:
                 first_user_by_session[session_id] = row
-            if role == "assistant":
+            if role == "assistant" and factor_channel in {"assistant_result", ""}:
                 last_assistant_by_session[session_id] = row
 
         statuses: list[SessionAnalysisStatus] = []
@@ -688,6 +689,8 @@ class LedgerRepository:
                     confidence,
                     verdict_signals_json,
                     scores_json,
+                    statistics_json,
+                    notes_json,
                     created_at
                 FROM factor_results
                 WHERE session_id = ?
@@ -713,6 +716,42 @@ class LedgerRepository:
                 """,
                 (session_id,),
             ).fetchall()
+            dataset_rows = conn.execute(
+                """
+                SELECT
+                    result_run_id,
+                    dataset_id,
+                    semantic_type,
+                    shape,
+                    primary_key,
+                    schema_json,
+                    records_json,
+                    evidence_policy_json
+                FROM factor_datasets
+                WHERE session_id = ?
+                ORDER BY id
+                """,
+                (session_id,),
+            ).fetchall()
+            presentation_rows = conn.execute(
+                """
+                SELECT
+                    result_run_id,
+                    presentation_id,
+                    title,
+                    component_ref,
+                    data_ref,
+                    bindings_json,
+                    props_json,
+                    routes_json,
+                    fallback_json,
+                    priority
+                FROM factor_presentations
+                WHERE session_id = ?
+                ORDER BY id
+                """,
+                (session_id,),
+            ).fetchall()
 
         tags_by_result: dict[str, list[dict[str, str]]] = {}
         for row in tag_rows:
@@ -730,6 +769,36 @@ class LedgerRepository:
                 {str(key): str(value) for key, value in payload.items()}
             )
 
+        datasets_by_result: dict[str, list[dict[str, Any]]] = {}
+        for row in dataset_rows:
+            datasets_by_result.setdefault(str(row["result_run_id"]), []).append(
+                {
+                    "id": str(row["dataset_id"]),
+                    "semantic_type": str(row["semantic_type"]),
+                    "shape": str(row["shape"]),
+                    "primary_key": str(row["primary_key"]),
+                    "records": _json_array(str(row["records_json"] or "[]")),
+                    "schema": _json_dict(str(row["schema_json"] or "{}")),
+                    "evidence_policy": _json_dict(str(row["evidence_policy_json"] or "{}")),
+                }
+            )
+
+        presentations_by_result: dict[str, list[dict[str, Any]]] = {}
+        for row in presentation_rows:
+            presentations_by_result.setdefault(str(row["result_run_id"]), []).append(
+                {
+                    "id": str(row["presentation_id"]),
+                    "title": str(row["title"]),
+                    "component_ref": str(row["component_ref"]),
+                    "data_ref": str(row["data_ref"]),
+                    "bindings": _json_dict(str(row["bindings_json"] or "{}")),
+                    "props": _json_dict(str(row["props_json"] or "{}")),
+                    "routes": _json_array(str(row["routes_json"] or "[]")),
+                    "fallback": _json_array(str(row["fallback_json"] or "[]")),
+                    "priority": int(row["priority"]),
+                }
+            )
+
         return [
             FactorResult(
                 run_id=str(row["result_run_id"]),
@@ -743,8 +812,12 @@ class LedgerRepository:
                 status=str(row["status"]),
                 tags=tags_by_result.get(str(row["result_run_id"]), []),
                 scores=_json_dict(str(row["scores_json"] or "{}")),
+                statistics=_json_dict(str(row["statistics_json"] or "{}")),
+                datasets=datasets_by_result.get(str(row["result_run_id"]), []),
+                presentations=presentations_by_result.get(str(row["result_run_id"]), []),
                 evidence_refs=evidence_by_result.get(str(row["result_run_id"]), []),
                 verdict_signals=_json_list(str(row["verdict_signals_json"] or "[]")),
+                notes=[str(item) for item in _json_array(str(row["notes_json"] or "[]"))],
                 confidence=float(row["confidence"]),
             )
             for row in result_rows
@@ -875,6 +948,8 @@ class LedgerRepository:
                     confidence REAL NOT NULL,
                     verdict_signals_json TEXT NOT NULL,
                     scores_json TEXT NOT NULL,
+                    statistics_json TEXT NOT NULL DEFAULT '{}',
+                    notes_json TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (analysis_run_id) REFERENCES analysis_runs(analysis_run_id) ON DELETE CASCADE,
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
@@ -901,6 +976,39 @@ class LedgerRepository:
                     FOREIGN KEY (result_run_id) REFERENCES factor_results(result_run_id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS factor_datasets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    result_run_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    factor_id TEXT NOT NULL,
+                    dataset_id TEXT NOT NULL,
+                    semantic_type TEXT NOT NULL,
+                    shape TEXT NOT NULL,
+                    primary_key TEXT NOT NULL DEFAULT '',
+                    schema_json TEXT NOT NULL DEFAULT '{}',
+                    records_json TEXT NOT NULL DEFAULT '[]',
+                    evidence_policy_json TEXT NOT NULL DEFAULT '{}',
+                    record_count INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (result_run_id) REFERENCES factor_results(result_run_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS factor_presentations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    result_run_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    factor_id TEXT NOT NULL,
+                    presentation_id TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '',
+                    component_ref TEXT NOT NULL,
+                    data_ref TEXT NOT NULL,
+                    bindings_json TEXT NOT NULL DEFAULT '{}',
+                    props_json TEXT NOT NULL DEFAULT '{}',
+                    routes_json TEXT NOT NULL DEFAULT '[]',
+                    fallback_json TEXT NOT NULL DEFAULT '[]',
+                    priority INTEGER NOT NULL DEFAULT 100,
+                    FOREIGN KEY (result_run_id) REFERENCES factor_results(result_run_id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS event_factor_tags (
                     session_id TEXT NOT NULL,
                     event_id TEXT NOT NULL,
@@ -919,6 +1027,8 @@ class LedgerRepository:
                     session_id TEXT NOT NULL,
                     factor_id TEXT NOT NULL,
                     factor_version TEXT NOT NULL DEFAULT '',
+                    target_type TEXT NOT NULL DEFAULT 'session',
+                    target_id TEXT NOT NULL DEFAULT '',
                     source_fingerprint TEXT NOT NULL DEFAULT '',
                     factor_fingerprint TEXT NOT NULL DEFAULT '',
                     runtime_fingerprint TEXT NOT NULL DEFAULT '',
@@ -930,6 +1040,18 @@ class LedgerRepository:
                     last_status TEXT NOT NULL,
                     PRIMARY KEY (session_id, factor_id),
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS factor_result_latest (
+                    target_type TEXT NOT NULL,
+                    target_id TEXT NOT NULL,
+                    factor_id TEXT NOT NULL,
+                    result_run_id TEXT NOT NULL,
+                    analysis_run_id TEXT NOT NULL,
+                    last_run_at TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    PRIMARY KEY (target_type, target_id, factor_id),
+                    FOREIGN KEY (result_run_id) REFERENCES factor_results(result_run_id) ON DELETE CASCADE
                 );
 
                 CREATE TABLE IF NOT EXISTS factor_run_errors (
@@ -984,12 +1106,38 @@ class LedgerRepository:
                     ON event_factor_tags(session_id, factor_id);
                 CREATE INDEX IF NOT EXISTS idx_factor_results_session
                     ON factor_results(session_id, factor_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_factor_results_analysis_run
+                    ON factor_results(analysis_run_id);
                 CREATE INDEX IF NOT EXISTS idx_factor_run_index_factor
                     ON factor_run_index(factor_id, last_run_at);
+                CREATE INDEX IF NOT EXISTS idx_factor_datasets_session
+                    ON factor_datasets(session_id, factor_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_datasets_result_run
+                    ON factor_datasets(result_run_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_presentations_session
+                    ON factor_presentations(session_id, factor_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_presentations_result_run
+                    ON factor_presentations(result_run_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_tags_result_run
+                    ON factor_tags(result_run_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_evidence_result_run
+                    ON factor_evidence(result_run_id);
+                CREATE INDEX IF NOT EXISTS idx_event_factor_tags_result_run
+                    ON event_factor_tags(result_run_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_result_latest_result_run
+                    ON factor_result_latest(result_run_id);
+                CREATE INDEX IF NOT EXISTS idx_analysis_runs_session
+                    ON analysis_runs(session_id);
+                CREATE INDEX IF NOT EXISTS idx_factor_run_errors_analysis_run
+                    ON factor_run_errors(analysis_run_id);
                 """
             )
             _ensure_column(conn, "sessions", "project_key", "TEXT NOT NULL DEFAULT ''")
             _ensure_column(conn, "sessions", "project_label", "TEXT NOT NULL DEFAULT ''")
+            _ensure_column(conn, "factor_results", "statistics_json", "TEXT NOT NULL DEFAULT '{}'")
+            _ensure_column(conn, "factor_results", "notes_json", "TEXT NOT NULL DEFAULT '[]'")
+            _ensure_column(conn, "factor_run_index", "target_type", "TEXT NOT NULL DEFAULT 'session'")
+            _ensure_column(conn, "factor_run_index", "target_id", "TEXT NOT NULL DEFAULT ''")
             conn.execute(
                 """
                 INSERT INTO schema_meta (key, value)
@@ -1000,6 +1148,12 @@ class LedgerRepository:
             )
 
     def _upsert_session(self, conn: sqlite3.Connection, session: SessionEnvelope, now: str) -> None:
+        _delete_session_source_aliases(
+            conn,
+            provider=session.provider,
+            source_ref=session.source_ref,
+            keep_session_id=session.session_id,
+        )
         conn.execute(
             """
             INSERT INTO sessions (
@@ -1032,8 +1186,16 @@ class LedgerRepository:
             ),
         )
 
-    def _upsert_events(self, conn: sqlite3.Connection, session: SessionEnvelope) -> None:
+    def _upsert_events(
+        self,
+        conn: sqlite3.Connection,
+        session: SessionEnvelope,
+        *,
+        event_ids: set[str] | None = None,
+    ) -> None:
         for index, event in enumerate(session.events, start=1):
+            if not _should_store_session_event(event, event_ids=event_ids):
+                continue
             conn.execute(
                 """
                 INSERT INTO session_events (
@@ -1072,12 +1234,12 @@ class LedgerRepository:
                     str(event.metadata.get("source_ref") or session.source_ref),
                     str(event.metadata.get("source_fingerprint") or session.metadata.get("source_fingerprint") or ""),
                     _json(event.metadata.get("event_locator_json") or {}),
-                    _json(event.metadata.get("artifact_locator_json") or {}),
+                    "{}",
                     str(event.metadata.get("content_hash") or _content_hash(event.content)),
                     str(event.metadata.get("content_preview_redacted") or _preview(event.content)),
                     str(event.metadata.get("tool_result_hash") or _content_hash(_json(event.tool_result or {})) if event.tool_result else ""),
                     str(event.metadata.get("tool_result_preview_redacted") or _preview(_json(event.tool_result or {})) if event.tool_result else ""),
-                    _json(event.metadata),
+                    _json(_compact_event_metadata(event.metadata)),
                 ),
             )
 
@@ -1091,14 +1253,15 @@ class LedgerRepository:
         source_fingerprint: str,
     ) -> None:
         result_session_id = result.session_id or session_id
+        self._delete_previous_latest_result(conn, result)
         conn.execute(
             """
             INSERT INTO factor_results (
                 result_run_id, analysis_run_id, session_id, factor_id, factor_version,
                 framework_id, stage, target_type, target_id, status, confidence,
-                verdict_signals_json, scores_json, created_at
+                verdict_signals_json, scores_json, statistics_json, notes_json, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result.run_id,
@@ -1114,19 +1277,23 @@ class LedgerRepository:
                 result.confidence,
                 _json(result.verdict_signals),
                 _json(result.scores),
+                _json(result.statistics),
+                _json(result.notes),
                 now,
             ),
         )
         conn.execute(
             """
             INSERT INTO factor_run_index (
-                session_id, factor_id, factor_version, source_fingerprint, factor_fingerprint,
+                session_id, factor_id, factor_version, target_type, target_id, source_fingerprint, factor_fingerprint,
                 runtime_fingerprint, run_reason, stale_reason, last_run_at, last_analysis_run_id,
                 last_result_run_id, last_status
             )
-            VALUES (?, ?, ?, ?, '', '', 'manual', '', ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, '', '', 'manual', '', ?, ?, ?, ?)
             ON CONFLICT(session_id, factor_id) DO UPDATE SET
                 factor_version = excluded.factor_version,
+                target_type = excluded.target_type,
+                target_id = excluded.target_id,
                 source_fingerprint = excluded.source_fingerprint,
                 factor_fingerprint = excluded.factor_fingerprint,
                 runtime_fingerprint = excluded.runtime_fingerprint,
@@ -1141,10 +1308,35 @@ class LedgerRepository:
                 result_session_id,
                 result.factor_id,
                 result.factor_version,
+                result.target_type,
+                result.target_id,
                 source_fingerprint,
                 now,
                 analysis_run_id,
                 result.run_id,
+                result.status,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO factor_result_latest (
+                target_type, target_id, factor_id, result_run_id,
+                analysis_run_id, last_run_at, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(target_type, target_id, factor_id) DO UPDATE SET
+                result_run_id = excluded.result_run_id,
+                analysis_run_id = excluded.analysis_run_id,
+                last_run_at = excluded.last_run_at,
+                status = excluded.status
+            """,
+            (
+                result.target_type,
+                result.target_id,
+                result.factor_id,
+                result.run_id,
+                analysis_run_id,
+                now,
                 result.status,
             ),
         )
@@ -1174,11 +1366,96 @@ class LedgerRepository:
                 """,
                 (result.run_id, result_session_id, result.factor_id, event_id, kind, _json(evidence)),
             )
-            if not self._event_exists(conn, result_session_id, event_id):
+        self._insert_event_factor_tags(conn, analysis_run_id, result_session_id, result, now)
+        self._insert_datasets(conn, result_session_id, result)
+        self._insert_presentations(conn, result_session_id, result)
+
+    def _delete_previous_latest_result(self, conn: sqlite3.Connection, result: FactorResult) -> None:
+        row = conn.execute(
+            """
+            SELECT result_run_id
+            FROM factor_result_latest
+            WHERE target_type = ?
+              AND target_id = ?
+              AND factor_id = ?
+            """,
+            (result.target_type, result.target_id, result.factor_id),
+        ).fetchone()
+        if row is None:
+            return
+        previous_result_run_id = str(row["result_run_id"])
+        if previous_result_run_id == result.run_id:
+            return
+        conn.execute("DELETE FROM factor_result_latest WHERE result_run_id = ?", (previous_result_run_id,))
+        conn.execute("DELETE FROM factor_results WHERE result_run_id = ?", (previous_result_run_id,))
+
+    def _insert_datasets(self, conn: sqlite3.Connection, session_id: str, result: FactorResult) -> None:
+        for dataset in result.datasets:
+            records = dataset.get("records")
+            record_count = len(records) if isinstance(records, list) else 0
+            conn.execute(
+                """
+                INSERT INTO factor_datasets (
+                    result_run_id, session_id, factor_id, dataset_id, semantic_type,
+                    shape, primary_key, schema_json, records_json, evidence_policy_json, record_count
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    result.run_id,
+                    session_id,
+                    result.factor_id,
+                    str(dataset.get("id") or ""),
+                    str(dataset.get("semantic_type") or ""),
+                    str(dataset.get("shape") or ""),
+                    str(dataset.get("primary_key") or ""),
+                    _json(dataset.get("schema") or {}),
+                    _json(records if isinstance(records, list) else []),
+                    _json(dataset.get("evidence_policy") or {}),
+                    record_count,
+                ),
+            )
+
+    def _insert_presentations(self, conn: sqlite3.Connection, session_id: str, result: FactorResult) -> None:
+        for presentation in result.presentations:
+            conn.execute(
+                """
+                INSERT INTO factor_presentations (
+                    result_run_id, session_id, factor_id, presentation_id, title,
+                    component_ref, data_ref, bindings_json, props_json,
+                    routes_json, fallback_json, priority
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    result.run_id,
+                    session_id,
+                    result.factor_id,
+                    str(presentation.get("id") or ""),
+                    str(presentation.get("title") or ""),
+                    str(presentation.get("component_ref") or ""),
+                    str(presentation.get("data_ref") or ""),
+                    _json(presentation.get("bindings") or {}),
+                    _json(presentation.get("props") or {}),
+                    _json(presentation.get("routes") or []),
+                    _json(presentation.get("fallback") or []),
+                    _int(presentation.get("priority"), default=100),
+                ),
+            )
+
+    def _insert_event_factor_tags(
+        self,
+        conn: sqlite3.Connection,
+        analysis_run_id: str,
+        session_id: str,
+        result: FactorResult,
+        now: str,
+    ) -> None:
+        tags_by_event = _event_tags_from_result(result)
+        for event_id, tags in tags_by_event.items():
+            if not self._event_exists(conn, session_id, event_id):
                 continue
-            for tag in result.tags:
-                tag_type = str(tag.get("type") or "")
-                tag_value = str(tag.get("value") or "")
+            for tag_type, tag_value in sorted(tags):
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO event_factor_tags (
@@ -1188,7 +1465,7 @@ class LedgerRepository:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        result_session_id,
+                        session_id,
                         event_id,
                         result.run_id,
                         analysis_run_id,
@@ -1198,6 +1475,23 @@ class LedgerRepository:
                         now,
                     ),
                 )
+
+    def _delete_orphan_analysis_runs(self, conn: sqlite3.Connection, session_id: str) -> None:
+        conn.execute(
+            """
+            DELETE FROM analysis_runs
+            WHERE session_id = ?
+              AND NOT EXISTS (
+                SELECT 1 FROM factor_results
+                WHERE factor_results.analysis_run_id = analysis_runs.analysis_run_id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM factor_run_errors
+                WHERE factor_run_errors.analysis_run_id = analysis_runs.analysis_run_id
+              )
+            """,
+            (session_id,),
+        )
 
     def _insert_error(
         self,
@@ -1289,6 +1583,14 @@ def _json_list(value: str) -> list[str]:
     return [str(item) for item in parsed]
 
 
+def _json_array(value: str) -> list[Any]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 def _project_key(metadata: dict[str, Any]) -> str:
     return str(metadata.get("project_key") or metadata.get("session_group_key") or metadata.get("session_cwd") or "")
 
@@ -1309,6 +1611,166 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+def _delete_session_source_aliases(
+    conn: sqlite3.Connection,
+    *,
+    provider: str,
+    source_ref: str,
+    keep_session_id: str,
+) -> None:
+    conn.execute(
+        """
+        DELETE FROM sessions
+        WHERE provider = ?
+          AND source_ref = ?
+          AND session_id != ?
+        """,
+        (provider, source_ref, keep_session_id),
+    )
+
+
+DROP_EVENT_METADATA_KEYS = {
+    "provider",
+    "scanner_id",
+    "scanner_version",
+    "source_ref",
+    "source_fingerprint",
+    "event_locator_json",
+    "artifact_locator_json",
+    "content_hash",
+    "content_preview_redacted",
+    "tool_result_hash",
+    "tool_result_preview_redacted",
+    "role",
+    "tool_name",
+}
+
+
+def _compact_event_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(key): value
+        for key, value in metadata.items()
+        if str(key) not in DROP_EVENT_METADATA_KEYS and value not in ("", None, {}, [])
+    }
+
+
+MATERIAL_EVENT_CHANNELS = {"user_input", "assistant_result"}
+MATERIALIZED_EVIDENCE_FACTOR_IDS = {
+    "official.user-input-sentiment",
+    "official.repeated-request",
+    "official.task-completion",
+    "official.tool-failure-frequency",
+}
+
+
+def _should_store_session_event(event: SessionEvent, *, event_ids: set[str] | None = None) -> bool:
+    if event_ids is not None and event.event_id in event_ids:
+        return True
+    return str(event.metadata.get("factor_channel") or "") in MATERIAL_EVENT_CHANNELS
+
+
+def _result_evidence_event_ids(results: Iterable[FactorResult]) -> set[str]:
+    event_ids: set[str] = set()
+    for result in results:
+        if not _should_materialize_result_evidence(result.factor_id):
+            continue
+        for evidence in result.evidence_refs:
+            event_id = str(evidence.get("ref_id") or evidence.get("event_id") or "")
+            if event_id:
+                event_ids.add(event_id)
+        for dataset in result.datasets:
+            records = dataset.get("records")
+            if not isinstance(records, list):
+                continue
+            for record in records:
+                if isinstance(record, dict):
+                    _collect_record_event_ids(record, event_ids)
+    return event_ids
+
+
+def _should_materialize_result_evidence(factor_id: str) -> bool:
+    return factor_id in MATERIALIZED_EVIDENCE_FACTOR_IDS or factor_id.startswith("default.")
+
+
+def _collect_record_event_ids(record: dict[str, Any], event_ids: set[str]) -> None:
+    for key in ("event_id", "evidence_event_id"):
+        event_id = str(record.get(key) or "")
+        if event_id:
+            event_ids.add(event_id)
+    sample_event_ids = record.get("sample_event_ids")
+    if not isinstance(sample_event_ids, list):
+        return
+    for raw_event_id in sample_event_ids:
+        event_id = str(raw_event_id or "")
+        if event_id:
+            event_ids.add(event_id)
+
+
+MAX_GENERIC_EVENT_TAG_EVIDENCE = 20
+MAX_SAMPLE_EVENT_TAGS_PER_RECORD = 10
+
+
+def _event_tags_from_result(result: FactorResult) -> dict[str, set[tuple[str, str]]]:
+    tags_by_event: dict[str, set[tuple[str, str]]] = {}
+
+    for dataset in result.datasets:
+        records = dataset.get("records")
+        if not isinstance(records, list):
+            continue
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            _add_record_event_tags(tags_by_event, record)
+            _add_sample_event_tags(tags_by_event, record, result.tags)
+
+    if len(result.evidence_refs) <= MAX_GENERIC_EVENT_TAG_EVIDENCE:
+        for evidence in result.evidence_refs:
+            event_id = str(evidence.get("ref_id") or evidence.get("event_id") or "")
+            if not event_id:
+                continue
+            for tag in result.tags:
+                _add_event_tag(tags_by_event, event_id, str(tag.get("type") or ""), str(tag.get("value") or ""))
+
+    return tags_by_event
+
+
+def _add_record_event_tags(tags_by_event: dict[str, set[tuple[str, str]]], record: dict[str, Any]) -> None:
+    event_id = str(record.get("event_id") or "")
+    if event_id:
+        if record.get("sentiment"):
+            _add_event_tag(tags_by_event, event_id, "user_sentiment", str(record["sentiment"]))
+        if record.get("signal"):
+            _add_event_tag(tags_by_event, event_id, "signal", str(record["signal"]))
+
+    evidence_event_id = str(record.get("evidence_event_id") or "")
+    if evidence_event_id and record.get("verdict"):
+        _add_event_tag(tags_by_event, evidence_event_id, "task_completion", str(record["verdict"]))
+
+
+def _add_sample_event_tags(
+    tags_by_event: dict[str, set[tuple[str, str]]],
+    record: dict[str, Any],
+    result_tags: list[dict[str, str]],
+) -> None:
+    sample_event_ids = record.get("sample_event_ids")
+    if not isinstance(sample_event_ids, list):
+        return
+    for raw_event_id in sample_event_ids[:MAX_SAMPLE_EVENT_TAGS_PER_RECORD]:
+        event_id = str(raw_event_id)
+        if not event_id:
+            continue
+        for tag in result_tags:
+            _add_event_tag(tags_by_event, event_id, str(tag.get("type") or ""), str(tag.get("value") or ""))
+
+
+def _add_event_tag(tags_by_event: dict[str, set[tuple[str, str]]], event_id: str, tag_type: str, tag_value: str) -> None:
+    tag_type = tag_type.strip()
+    tag_value = tag_value.strip()
+    if not event_id or not tag_type or not tag_value:
+        return
+    tags_by_event.setdefault(event_id, set()).add((tag_type[:80], tag_value[:80]))
+
+
 def _value(value: Any, key: str) -> str:
     if isinstance(value, dict):
         return str(value.get(key) or "")
@@ -1326,6 +1788,14 @@ def _content_preview(row: sqlite3.Row | None) -> str:
     if row is None:
         return ""
     return str(row["content_preview_redacted"])
+
+
+def _event_factor_channel(row: sqlite3.Row) -> str:
+    try:
+        metadata = _json_dict(str(row["metadata_json"] or "{}"))
+    except (IndexError, KeyError):
+        return ""
+    return str(metadata.get("factor_channel") or "")
 
 
 def _source_locator(row: sqlite3.Row | None) -> tuple[str, int]:

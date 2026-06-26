@@ -35,9 +35,9 @@ def test_scan_sessions_records_message_ids_without_content(tmp_path):
     ledger = LedgerRepository(RuntimePaths.for_workspace(tmp_path).ensure())
     events = ledger.list_session_events(session_id="session-minimal")
 
-    assert [event.event_id for event in events] == ["event_0002", "event_0003", "event_0004"]
-    assert [event.role for event in events] == ["user", "tool", "task_complete"]
-    assert [event.tool_name for event in events] == ["", "exec_command", ""]
+    assert [event.event_id for event in events] == ["event_0002", "event_0004"]
+    assert [event.role for event in events] == ["user", "task_complete"]
+    assert [event.tool_name for event in events] == ["", ""]
     assert all(event.content == "" for event in events)
     assert all(event.tool_result_preview == "" for event in events)
 
@@ -61,6 +61,13 @@ def test_scan_run_report_flow_writes_local_artifacts(tmp_path):
 
     assert run_result.result_count == 1
     assert run_result.error_count == 0
+
+    ledger = LedgerRepository(RuntimePaths.for_workspace(tmp_path).ensure())
+    events = ledger.list_session_events(session_id="session-minimal")
+    assert [event.event_id for event in events] == ["event_0002", "event_0003", "event_0004"]
+    assert events[1].role == "tool"
+    assert events[1].tool_name == "exec_command"
+    assert "Traceback" in events[1].content
 
     report_result = generate_report(
         workspace_root=tmp_path,

@@ -34,6 +34,31 @@ Identify and, when needed, confirm:
 
 Default behavior is local-first, upload-off, network-off, external-command-off, and explicit-selection for factors.
 
+## Dependency Bootstrap
+
+Runtime task 前先确认依赖是否已经安装。尤其是 Graph ledger / GraphQLite 迁移、cohort、cluster 相关任务，必须先安装 graph extra：
+
+```bash
+python -m pip install -e '.[graph]'
+```
+
+如果本轮还需要跑测试，安装 dev + graph：
+
+```bash
+python -m pip install -e '.[dev,graph]'
+```
+
+安装后至少验证一次：
+
+```bash
+python - <<'PY'
+import graphqlite
+print("graphqlite ok")
+PY
+```
+
+Graph ledger 分支运行时 hard require `graphqlite`。正式迁移或 CLI runtime 不允许 silent fallback 到 legacy SQLite；`--sqlite-test-backend` 只能用于 repository tests / migration tests。
+
 ## Architecture Rules
 
 - Scanner uses Abstract Base Class + Adapter + Registry. 每个本地应用或 session provider 必须实现独立 scanner adapter。

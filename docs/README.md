@@ -7,6 +7,7 @@
 | Document | Purpose |
 | --- | --- |
 | [design/scanner-runner-runtime-design.md](design/scanner-runner-runtime-design.md) | Scanner / runner runtime 目标架构、语言决策、模块边界和 C4 图 |
+| [design/graphqlite-sparse-evidence-ledger-design.md](design/graphqlite-sparse-evidence-ledger-design.md) | GraphQLite-first sparse evidence ledger、CRUD、历史 SQLite 迁移、cohort / cluster 总体方案 |
 | [scanner-runner-tutorial.md](scanner-runner-tutorial.md) | 面向非开发者的 scanner / runner 入门教程和概念解释 |
 | [scanner-runner-script-concepts.md](scanner-runner-script-concepts.md) | 当前 scanner / runner 脚本范围内的一等概念、SQLite 字段和数据流 |
 | [implementation/scanner-runner-runtime-implementation.md](implementation/scanner-runner-runtime-implementation.md) | 从旧 infra shell / prototype 迁移到正式 Python runtime 的实施计划 |
@@ -38,6 +39,8 @@ Factor pack 和 scanner module 的生命周期仍按 repo 边界处理：
 ```text
 EvoZeus main registry pointer
   -> evozeus-factor-lab review
-  -> evozeus-factors-official release unit
+  -> future official Factor release mechanism
   -> evozeus-runtime selective local execution
 ```
+
+`evozeus-session-signal-skill` 只承载 Session Signal SKILL 和 official review factor tools，不是 Factor pack release unit。
