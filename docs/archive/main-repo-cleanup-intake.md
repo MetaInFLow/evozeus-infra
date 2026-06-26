@@ -39,7 +39,8 @@
 | scanner execution / sandbox | `evozeus-infra` after lab / official metadata |
 | factor runner implementation | `evozeus-infra` |
 | draft Factor pack or scanner module | `evozeus-factor-lab` |
-| official promoted Factor pack | `evozeus-factors-official` |
+| Session Signal SKILL / official review factor tools | `evozeus-session-signal-skill` |
+| official promoted Factor pack | future official Factor release mechanism |
 | registry pointer | `EvoZeus` main repo |
 
 Infra must consume official assets through the main registry pointer and release metadata. It must not install from lab moving branches or old main-repo prototype paths.

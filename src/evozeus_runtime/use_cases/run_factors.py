@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,6 +27,7 @@ def run_factors(
     session_id: str,
     factor_ids: list[str],
     pack_root: Path,
+    progress: Callable[[str], None] | None = None,
 ) -> RunFactorsResult:
     decision = PermissionGate().approve(PermissionDeclaration(files_read=[pack_root]))
     if not decision.ok:
@@ -40,7 +42,10 @@ def run_factors(
     packs = [repository.get(factor_id) for factor_id in factor_ids]
     ledger.record_installed_factors(packs, source="local-fixture")
     ledger.record_default_routes(packs)
-    summary = FactorRunner(packs).run(FactorContext(session=session))
+    runner_progress = None
+    if progress is not None:
+        runner_progress = lambda message: progress(f"session_id={session_id} {message}")
+    summary = FactorRunner(packs).run(FactorContext(session=session), progress=runner_progress)
     analysis_run_id = ledger.record_factor_run(
         session,
         summary.results,

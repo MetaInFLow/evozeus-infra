@@ -15,7 +15,7 @@ ledger 负责把找到的编号和检查结果存在本地。
 假设你的电脑里有一个项目：
 
 ```text
-/Users/anthonyf/Documents/EvoZeus-community
+/Users/anthonyf/Documents/evozeus-web
 ```
 
 这个项目下面发生过两次 Codex chat：
@@ -64,7 +64,7 @@ scanner 可以理解成“整理聊天记录的人”。
 
 ```text
 project_label:
-  EvoZeus-community
+  evozeus-web
 
 session_id:
   019ecc42-5ef3-7e82-8f05-ec83b90b9c3a
@@ -78,7 +78,7 @@ message/event:
 这表示：
 
 ```text
-在 EvoZeus-community 这个项目里，
+在 evozeus-web 这个项目里，
 有一条聊天记录叫 019ecc42-...，
 里面有一条消息，
 这条消息在原始 Codex 记录文件的第 4 行。
@@ -165,8 +165,8 @@ project 是 chat 所属的项目。
 比如：
 
 ```text
-project_key=/Users/anthonyf/Documents/EvoZeus-community
-project_label=EvoZeus-community
+project_key=/Users/anthonyf/Documents/evozeus-web
+project_label=evozeus-web
 ```
 
 你可以把它理解成：
@@ -181,7 +181,7 @@ project_label 是显示给人看的名字
 因为以后你会想这样看：
 
 ```text
-列出 EvoZeus-community 下面所有 chat
+列出 evozeus-web 下面所有 chat
 列出某个 project 下还没跑过 Factor 的 chat
 按 project 看哪些 session 已经分析过
 ```
@@ -203,7 +203,7 @@ event_count=680
 你可以把它理解成：
 
 ```text
-这是 EvoZeus-community 项目里的一次完整对话，
+这是 evozeus-web 项目里的一次完整对话，
 这次对话有 680 条 message/event。
 ```
 

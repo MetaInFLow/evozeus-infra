@@ -73,7 +73,7 @@ render_sqlite_html.py
 | 概念 | 它是什么意思 | 例子 | 为什么脚本需要它 |
 | --- | --- | --- | --- |
 | Provider | session 来源应用或来源协议。不同应用的本地记录格式不同，所以需要 provider 区分。 | `codex` | `run_scanner.py --provider codex` 通过 provider 选择 `CodexScanner`。 |
-| Project | 一组 chat records 的项目归属。它是用户理解和筛选记录的第一层分组。 | `project_key=/Users/anthonyf/Documents/EvoZeus-community`，`project_label=EvoZeus-community` | UI 或查询可以按 project 列出这个 repo 下的所有 chat records。 |
+| Project | 一组 chat records 的项目归属。它是用户理解和筛选记录的第一层分组。 | `project_key=/Users/anthonyf/Documents/evozeus-web`，`project_label=evozeus-web` | UI 或查询可以按 project 列出这个 repo 下的所有 chat records。 |
 | Chat Record / Session | 一条完整对话记录，也就是一次 Codex chat / thread / rollout 文件对应的逻辑 session。 | `session_id=019ecc42-5ef3-7e82-8f05-ec83b90b9c3a`，title 是 `优化 Agent 唯一注册机制` | `run_runner.py --session-id <id>` 用它选择要跑 Factor 的 chat。 |
 | Message / Event | session 内的一条消息或事件。当前 SQLite 字段名叫 `event_id`，业务语义上可以理解为 message id。 | `event_id=event_0002`，或真实 Codex 行定位 id `2026-06-15T17:10:38.553Z#L4` | Factor evidence、tags、结果都要挂回具体 message。 |
 | Source Ref | provider 原始 session 的来源地址，P0 通常是本地 JSONL 文件路径。 | `/Users/anthonyf/.codex/sessions/2026/06/16/rollout-...jsonl` | Runner 需要从它重新加载完整 session；resolver 也靠它回源。 |
@@ -93,8 +93,8 @@ Provider:
   codex
 
 Project:
-  project_key=/Users/anthonyf/Documents/EvoZeus-community
-  project_label=EvoZeus-community
+  project_key=/Users/anthonyf/Documents/evozeus-web
+  project_label=evozeus-web
 
 Chat Record / Session:
   session_id=019ecc42-5ef3-7e82-8f05-ec83b90b9c3a
@@ -150,8 +150,8 @@ Factor Result:
 示例：
 
 ```text
-project_key=/Users/anthonyf/Documents/EvoZeus-community
-project_label=EvoZeus-community
+project_key=/Users/anthonyf/Documents/evozeus-web
+project_label=evozeus-web
 ```
 
 按项目列 chat records 时，应查询 `sessions.project_key/project_label`，不要从 `metadata_json` 临时解析。

@@ -76,6 +76,8 @@ evozeus-runtime scan --provider codex --workspace /tmp/evozeus-workspace
 evozeus-runtime scan --provider codex --source tests/fixtures/codex_sessions --workspace /tmp/evozeus-workspace
 evozeus-runtime run --session-id session-minimal --factor default.tool_failure --pack-root tests/fixtures/factor_packs --workspace /tmp/evozeus-workspace
 evozeus-runtime report --session-id session-minimal --format markdown --format json --format html --workspace /tmp/evozeus-workspace
+evozeus-runtime migrate-ledger --workspace /tmp/evozeus-workspace
+evozeus-runtime graph-browser --workspace /tmp/evozeus-workspace
 ```
 
 Repository scripts:
@@ -85,11 +87,15 @@ python scripts/run_scanner.py --provider codex --workspace /tmp/evozeus-workspac
 python scripts/run_scanner.py --provider codex --source tests/fixtures/codex_sessions --workspace /tmp/evozeus-workspace
 python scripts/run_runner.py --session-id session-minimal --factor default.tool_failure --pack-root tests/fixtures/factor_packs --workspace /tmp/evozeus-workspace
 python scripts/render_sqlite_html.py --workspace /tmp/evozeus-workspace
+python scripts/migrate_sqlite_to_graphqlite.py --workspace /tmp/evozeus-workspace
+python scripts/render_graphqlite_html.py --workspace /tmp/evozeus-workspace
 ```
 
 不传 `--source` 时，`codex` provider 默认扫描 `~/.codex/sessions` 和 `~/.codex/archived_sessions`。显式传 `--source` 适合测试 fixture 或受控目录。
 不传 `--workspace` 时，ledger 和 report 默认写入当前工作目录下的 `.evozeus/`；需要放到别处时显式传 `--workspace /path/to/workspace`。
 `render_sqlite_html.py` 只读取该 workspace 下的 `.evozeus/runtime/index/results.sqlite3`，生成静态 HTML 可视化，不会重新扫描原始 session。
+`migrate_sqlite_to_graphqlite.py` 按 `docs/design/graphqlite-sparse-evidence-ledger-design.md` 把 legacy SQLite ledger 迁到 `.evozeus/runtime/index/results.graph.sqlite3`，并把原始 `results.sqlite3` 备份为 `results.sqlite3.legacy`。Graph ledger 分支运行时 hard require `graphqlite`；未安装时会明确提示安装，不 silent fallback。
+`render_graphqlite_html.py` 只读取 GraphQLite graph ledger，生成 `.evozeus/runtime/reports/evozeus-graph.html`，用于查看 node / edge 分布、project、tag、factor、evidence 抽样和本地关系图。
 
 ## Directory Map
 
@@ -99,7 +105,7 @@ python scripts/render_sqlite_html.py --workspace /tmp/evozeus-workspace
 | `src/evozeus_runtime/sessions/` | Session schema and source locators |
 | `src/evozeus_runtime/factors/` | Factor schema, manifests, pack loading |
 | `src/evozeus_runtime/runner/` | Factor runner and runtime strategies |
-| `src/evozeus_runtime/ledger/` | SQLite local ledger paths and repository |
+| `src/evozeus_runtime/ledger/` | SQLite legacy ledger、Graph ledger repository 和迁移工具 |
 | `src/evozeus_runtime/reports/` | Markdown / JSON / HTML report renderers |
 | `src/evozeus_runtime/policy/` | Permission gate |
 | `src/evozeus_runtime/registry/` | Official release metadata verifier |
